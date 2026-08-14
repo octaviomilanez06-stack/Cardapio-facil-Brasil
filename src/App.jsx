@@ -37,9 +37,20 @@ const DEFAULT_STORE = {
   delivery_fee: 5.00, min_order: 20.00,
   delivery_time: "40-60 min", prep_time: "20-30 min",
   open_time: "00:00", close_time: "23:59",
+  open_days: "0,1,2,3,4,5,6",
   banner: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1200&q=80",
   logo: "🍗", logo_shape: "circle", title_color: "#8B1A1A", is_open: true,
 };
+
+const WEEKDAYS = [
+  { val: 0, label: "Dom" },
+  { val: 1, label: "Seg" },
+  { val: 2, label: "Ter" },
+  { val: 3, label: "Qua" },
+  { val: 4, label: "Qui" },
+  { val: 5, label: "Sex" },
+  { val: 6, label: "Sáb" },
+];
 
 const DEFAULT_CATEGORIES = [
   { id: 1, name: "🍔 Hambúrgueres", order: 1 },
@@ -85,6 +96,8 @@ function Spinner() {
 function isStoreOpen(store) {
   if (!store.is_open) return false;
   const now = new Date();
+  const openDays = (store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
+  if (openDays.length>0 && !openDays.includes(now.getDay())) return false;
   const [oh,om] = (store.open_time||"00:00").split(":").map(Number);
   const [ch,cm] = (store.close_time||"23:59").split(":").map(Number);
   const cur = now.getHours()*60+now.getMinutes();
@@ -108,6 +121,16 @@ function ComplementSelector({ complements, selected, onChange }) {
             const key=`${group.id}-${i}`;
             const count=selected[key]||0;
             const groupTotal=group.options.reduce((s,_,j)=>s+(selected[`${group.id}-${j}`]||0),0);
+            if(opt.sold_out){
+              return (
+                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 4px",borderBottom:"1px solid #F0EAE3",opacity:0.5}}>
+                  <div>
+                    <p style={{fontSize:14,fontWeight:500,textDecoration:"line-through"}}>{opt.name}</p>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,color:"#9B8B7A"}}>Esgotado</span>
+                </div>
+              );
+            }
             return (
               <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 4px",borderBottom:"1px solid #F0EAE3"}}>
                 <div>
@@ -332,6 +355,11 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
       <div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 32px",marginBottom:16}}>
         <p style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:600,marginBottom:4}}>Estamos fechados no momento</p>
         <p style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Abrimos às {store.open_time} • Fechamos às {store.close_time}</p>
+        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginTop:4}}>{(() => {
+          const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
+          if(openDays.length===7)return "Todos os dias";
+          return WEEKDAYS.filter(d=>openDays.includes(d.val)).map(d=>d.label).join(", ");
+        })()}</p>
       </div>
       <p style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Volte em breve! 🥰</p>
     </div>
@@ -485,17 +513,22 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
               <h2 className="st" style={{fontSize:22,color:"#8B1A1A",marginBottom:16,paddingBottom:8,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h2>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(270px, 1fr))",gap:16}}>
                 {cp.map(p=>(
-                  <div key={p.id} onClick={()=>{setSelProduct(p);setSelComplements({});}} style={{background:"#fff",borderRadius:18,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",transition:"transform 0.2s,box-shadow 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px rgba(0,0,0,0.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.07)";}}>
+                  <div key={p.id} onClick={()=>{setSelProduct(p);setSelComplements({});}} style={{background:"#fff",borderRadius:18,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",transition:"transform 0.2s,box-shadow 0.2s",opacity:p.sold_out?0.6:1}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px rgba(0,0,0,0.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.07)";}}>
                     <div style={{position:"relative",height:190}}>
-                      <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
-                      {p.tag&&<div style={{position:"absolute",top:10,left:10}}><Badge tag={p.tag} /></div>}
+                      <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover",filter:p.sold_out?"grayscale(70%)":"none"}} />
+                      {p.tag&&!p.sold_out&&<div style={{position:"absolute",top:10,left:10}}><Badge tag={p.tag} /></div>}
+                      {p.sold_out&&<div style={{position:"absolute",top:10,left:10,background:"#1A1A1A",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,textTransform:"uppercase"}}>Esgotado</div>}
                     </div>
                     <div style={{padding:16}}>
                       <h3 style={{fontSize:15,fontWeight:700,marginBottom:6}}>{p.name}</h3>
                       <p style={{fontSize:12,color:"#9B8B7A",marginBottom:12,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{p.description}</p>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                         <span className="st" style={{fontSize:18,color:"#8B1A1A"}}>R$ {Number(p.price).toFixed(2)}</span>
-                        <button onClick={e=>{e.stopPropagation();const c=parseC(p.complements);if(c.length>0){setSelProduct(p);setSelComplements({});}else{addToCart(p,[],{});}}} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,width:36,height:36,fontSize:20,cursor:"pointer"}}>+</button>
+                        {p.sold_out?(
+                          <span style={{fontSize:11,fontWeight:700,color:"#9B8B7A"}}>Indisponível</span>
+                        ):(
+                          <button onClick={e=>{e.stopPropagation();const c=parseC(p.complements);if(c.length>0){setSelProduct(p);setSelComplements({});}else{addToCart(p,[],{});}}} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,width:36,height:36,fontSize:20,cursor:"pointer"}}>+</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -518,9 +551,10 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setSelProduct(null)}>
           <div style={{background:"#fff",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:560,maxHeight:"92vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{position:"relative",height:240}}>
-              <img src={selProduct.image} alt={selProduct.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+              <img src={selProduct.image} alt={selProduct.name} style={{width:"100%",height:"100%",objectFit:"cover",filter:selProduct.sold_out?"grayscale(70%)":"none"}} />
               <button onClick={()=>setSelProduct(null)} style={{position:"absolute",top:14,right:14,background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:34,height:34,cursor:"pointer"}}>✕</button>
-              {selProduct.tag&&<div style={{position:"absolute",top:14,left:14}}><Badge tag={selProduct.tag} /></div>}
+              {selProduct.tag&&!selProduct.sold_out&&<div style={{position:"absolute",top:14,left:14}}><Badge tag={selProduct.tag} /></div>}
+              {selProduct.sold_out&&<div style={{position:"absolute",top:14,left:14,background:"#1A1A1A",color:"#fff",fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,textTransform:"uppercase"}}>Esgotado</div>}
             </div>
             <div style={{padding:24}}>
               <h2 style={{fontWeight:800,fontSize:20,marginBottom:8}}>{selProduct.name}</h2>
@@ -528,7 +562,11 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
               <ComplementSelector complements={parsedC} selected={selComplements} onChange={setSelComplements} />
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"1px solid #F5F0EB"}}>
                 <span className="st" style={{fontSize:22,color:"#8B1A1A"}}>R$ {(Number(selProduct.price)+getExtrasTotal(parsedC,selComplements)).toFixed(2)}</span>
-                <button onClick={()=>addToCart(selProduct,parsedC,selComplements)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Adicionar</button>
+                {selProduct.sold_out?(
+                  <span style={{background:"#F5F0EB",color:"#9B8B7A",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14}}>Esgotado</span>
+                ):(
+                  <button onClick={()=>addToCart(selProduct,parsedC,selComplements)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Adicionar</button>
+                )}
               </div>
             </div>
           </div>
@@ -585,8 +623,9 @@ function ComplementEditor({value,onChange}){
           </div>
           {g.options.map((opt,oi)=>(
             <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
-              <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13}} placeholder="Nome" />
+              <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13,textDecoration:opt.sold_out?"line-through":"none",color:opt.sold_out?"#9B8B7A":"#1A1A1A"}} placeholder="Nome" />
               <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
+              <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,sold_out:!o.sold_out}:o)}:x))} title={opt.sold_out?"Marcar como disponível":"Marcar como esgotado"} style={{background:opt.sold_out?"#1A1A1A":"#F5F0EB",color:opt.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{opt.sold_out?"Esgotado":"Disponível"}</button>
               <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
             </div>
           ))}
@@ -648,6 +687,16 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     await db("products","PATCH",{active:!current},`?id=eq.${id}`);
     setProducts(prev=>prev.map(p=>p.id===id?{...p,active:!current}:p));
     notify("Produto atualizado!");
+  }
+  async function toggleSoldOut(id,current){
+    try{
+      await db("products","PATCH",{sold_out:!current},`?id=eq.${id}`);
+      setProducts(prev=>prev.map(p=>p.id===id?{...p,sold_out:!current}:p));
+      notify(!current?"Produto marcado como esgotado!":"Produto marcado como disponível!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao atualizar. Veja o console (F12).","error");
+    }
   }
   async function deleteProduct(id){
     if(!confirm("Tem certeza?"))return;
@@ -857,7 +906,10 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                           <div style={{position:"relative",height:150}}>
                             <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
                             {p.tag&&<div style={{position:"absolute",top:8,left:8}}><Badge tag={p.tag} /></div>}
-                            <div style={{position:"absolute",top:8,right:8,background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                            <div style={{position:"absolute",top:8,right:8,display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+                              <div style={{background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                              {p.sold_out&&<div style={{background:"#1A1A1A",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>Esgotado</div>}
+                            </div>
                           </div>
                           <div style={{padding:14}}>
                             <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
@@ -866,6 +918,9 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                             <div style={{display:"flex",gap:8,marginBottom:8}}>
                               <button onClick={()=>moveProductUp(p.id)} disabled={idx===0} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===0?"default":"pointer",opacity:idx===0?0.4:1}}>↑ Subir</button>
                               <button onClick={()=>moveProductDown(p.id)} disabled={idx===catProducts.length-1} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===catProducts.length-1?"default":"pointer",opacity:idx===catProducts.length-1?0.4:1}}>↓ Descer</button>
+                            </div>
+                            <div style={{display:"flex",gap:8,marginBottom:8}}>
+                              <button onClick={()=>toggleSoldOut(p.id,p.sold_out)} style={{flex:1,background:p.sold_out?"#1A1A1A":"#F5F0EB",color:p.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>{p.sold_out?"Marcar disponível":"Marcar esgotado"}</button>
                             </div>
                             <div style={{display:"flex",gap:8}}>
                               <button onClick={()=>setEditingProduct({...p,complements:p.complements||"[]"})} style={{flex:1,background:"#EFF6FF",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:"#1D4ED8"}}>✏️ Editar</button>
@@ -888,12 +943,18 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                         <div style={{position:"relative",height:150}}>
                           <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
                           {p.tag&&<div style={{position:"absolute",top:8,left:8}}><Badge tag={p.tag} /></div>}
-                          <div style={{position:"absolute",top:8,right:8,background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                          <div style={{position:"absolute",top:8,right:8,display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+                            <div style={{background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                            {p.sold_out&&<div style={{background:"#1A1A1A",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>Esgotado</div>}
+                          </div>
                         </div>
                         <div style={{padding:14}}>
                           <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
                           <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
                           <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                          <div style={{display:"flex",gap:8,marginBottom:8}}>
+                            <button onClick={()=>toggleSoldOut(p.id,p.sold_out)} style={{flex:1,background:p.sold_out?"#1A1A1A":"#F5F0EB",color:p.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>{p.sold_out?"Marcar disponível":"Marcar esgotado"}</button>
+                          </div>
                           <div style={{display:"flex",gap:8}}>
                             <button onClick={()=>setEditingProduct({...p,complements:p.complements||"[]"})} style={{flex:1,background:"#EFF6FF",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:"#1D4ED8"}}>✏️ Editar</button>
                             <button onClick={()=>toggleProduct(p.id,p.active)} style={{flex:1,background:p.active?"#FEE2E2":"#D1FAE5",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:p.active?"#991B1B":"#065F46"}}>{p.active?"Ocultar":"Ativar"}</button>
@@ -955,6 +1016,23 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>🕐 Abre às</label><input type="time" value={store.open_time||"18:30"} onChange={e=>setStore(p=>({...p,open_time:e.target.value}))} style={IS} /></div>
                   <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>🕐 Fecha às</label><input type="time" value={store.close_time||"23:30"} onChange={e=>setStore(p=>({...p,close_time:e.target.value}))} style={IS} /></div>
                 </div>
+                <div style={{marginTop:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>📅 Dias de funcionamento</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {WEEKDAYS.map(d=>{
+                      const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number);
+                      const active=openDays.includes(d.val);
+                      return (
+                        <button key={d.val} onClick={()=>{
+                          const current=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
+                          const updated=current.includes(d.val)?current.filter(v=>v!==d.val):[...current,d.val];
+                          setStore(p=>({...p,open_days:updated.sort().join(",")}));
+                        }} style={{padding:"10px 14px",borderRadius:10,border:`2px solid ${active?"#8B1A1A":"#E5DDD5"}`,background:active?"#8B1A1A":"#fff",color:active?"#fff":"#1A1A1A",fontWeight:700,cursor:"pointer",fontSize:13,minWidth:52}}>{d.label}</button>
+                      );
+                    })}
+                  </div>
+                  <p style={{fontSize:11,color:"#9B8B7A",marginTop:8}}>Clique para ativar/desativar cada dia. Ex: só Qua a Dom → desative Seg e Ter.</p>
+                </div>
               </div>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>🎨 Aparência</h3>
@@ -985,8 +1063,9 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <h3 style={{fontWeight:800,marginBottom:16}}>🏷️ Logo</h3>
                 <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Emoji</label>
                 <input placeholder="🍗" value={(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?"":store.logo||""} onChange={e=>setStore(p=>({...p,logo:e.target.value}))} style={{...IS,fontSize:24,textAlign:"center"}} />
-                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Ou faça upload</label>
+                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Ou faça upload (PNG recomendado)</label>
                 <ImageUpload value={store.logo?.startsWith("data:")?store.logo:null} onChange={img=>setStore(p=>({...p,logo:img}))} />
+                <p style={{fontSize:11,color:"#9B8B7A",marginTop:8}}>Ao enviar uma imagem, ela também aparece como o ícone da aba do navegador (favicon).</p>
               </div>
               <button onClick={saveStore} disabled={saving} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:16}}>
                 {saving?"Salvando...":"💾 Salvar Alterações"}
@@ -1045,6 +1124,21 @@ export default function App() {
   const [customerUser,setCustomerUser]=useState(null);
   const [showAuth,setShowAuth]=useState(false);
   const isAdmin=window.location.pathname==="/admin"||window.location.hash==="#admin";
+
+  useEffect(()=>{
+    document.title = store.name || "Cardápio";
+    const isImageLogo = store.logo && (store.logo.startsWith("data:")||store.logo.startsWith("http"));
+    if(isImageLogo){
+      let link = document.querySelector("link[rel='icon']");
+      if(!link){
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.type = store.logo.startsWith("data:image/png")?"image/png":"image/x-icon";
+      link.href = store.logo;
+    }
+  },[store.name, store.logo]);
 
   useEffect(()=>{
     // Check saved user
