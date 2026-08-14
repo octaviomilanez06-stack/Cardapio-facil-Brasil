@@ -36,7 +36,7 @@ const DEFAULT_STORE = {
   category: "Hambúrgueres & Frango",
   delivery_fee: 5.00, min_order: 20.00,
   delivery_time: "40-60 min", prep_time: "20-30 min",
-  open_time: "18:30", close_time: "23:30",
+  open_time: "00:00", close_time: "23:59",
   banner: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1200&q=80",
   logo: "🍗", logo_shape: "circle", title_color: "#8B1A1A", is_open: true,
 };
@@ -47,19 +47,6 @@ const DEFAULT_CATEGORIES = [
   { id: 3, name: "🍟 Acompanhamentos", order: 3 },
   { id: 4, name: "🥤 Bebidas", order: 4 },
   { id: 5, name: "🍰 Sobremesas", order: 5 },
-];
-
-const INITIAL_PRODUCTS = [
-  { name: "Billy Clássico", category: "🍔 Hambúrgueres", price: 32.9, description: "Blend de frango artesanal, queijo cheddar, alface, tomate, cebola e molho especial Billy.", image: "https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80", tag: "bestseller", active: true, complements: JSON.stringify([{id:1,title:"Adicionar Molhos",options:[{name:"Molho Barbecue",price:2},{name:"Molho Ranch",price:2},{name:"Molho Chipotle",price:2}],max:2},{id:2,title:"Adicionar ao Sanduíche",options:[{name:"Dobrar a Carne",price:8},{name:"Bacon Extra",price:5},{name:"Queijo Extra",price:3}],max:3}]) },
-  { name: "Billy Bacon Crocante", category: "🍔 Hambúrgueres", price: 39.9, description: "Blend especial, bacon crocante, queijo coalho, cebola caramelizada e maionese defumada.", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80", tag: "new", active: true, complements: JSON.stringify([{id:1,title:"Adicionar Molhos",options:[{name:"Molho Barbecue",price:2},{name:"Molho Ranch",price:2}],max:2}]) },
-  { name: "Billy Frango Crispy", category: "🍔 Hambúrgueres", price: 34.9, description: "Frango empanado crocante, alface americana, tomate, picles e molho honey mustard.", image: "https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=400&q=80", tag: "bestseller", active: true, complements: JSON.stringify([]) },
-  { name: "Combo Billy Família", category: "🍗 Combos", price: 89.9, description: "2 Billy Clássico + 1 Billy Bacon + 2 Batatas Grandes + 4 Refrigerantes 350ml.", image: "https://images.unsplash.com/photo-1561758033-48d52648ae8b?w=400&q=80", tag: "promo", active: true, complements: JSON.stringify([]) },
-  { name: "Combo Billy Duplo", category: "🍗 Combos", price: 59.9, description: "2 Billy Clássico + 2 Batatas Médias + 2 Refrigerantes 350ml.", image: "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?w=400&q=80", tag: null, active: true, complements: JSON.stringify([]) },
-  { name: "Batata Frita Rústica", category: "🍟 Acompanhamentos", price: 18.9, description: "Batatas rústicas temperadas com ervas e flor de sal.", image: "https://images.unsplash.com/photo-1529990098630-4022df7bb7cc?w=400&q=80", tag: null, active: true, complements: JSON.stringify([{id:1,title:"Escolha o Molho",options:[{name:"Ketchup",price:0},{name:"Mostarda",price:0},{name:"Cheddar Cremoso",price:3}],max:1}]) },
-  { name: "Onion Rings", category: "🍟 Acompanhamentos", price: 22.9, description: "Anéis de cebola empanados em panko crocante com molho ranch.", image: "https://images.unsplash.com/photo-1639024471283-03518883512d?w=400&q=80", tag: null, active: true, complements: JSON.stringify([]) },
-  { name: "Coca-Cola 350ml", category: "🥤 Bebidas", price: 7.9, description: "Coca-Cola gelada.", image: "https://images.unsplash.com/photo-1629203851122-3726555cf519?w=400&q=80", tag: null, active: true, complements: JSON.stringify([]) },
-  { name: "Suco Natural", category: "🥤 Bebidas", price: 12.9, description: "Suco natural de laranja, limão ou maracujá.", image: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&q=80", tag: null, active: true, complements: JSON.stringify([]) },
-  { name: "Brownie com Sorvete", category: "🍰 Sobremesas", price: 19.9, description: "Brownie quentinho com sorvete de creme e calda de chocolate.", image: "https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&q=80", tag: "new", active: true, complements: JSON.stringify([]) },
 ];
 
 const TAG_COLORS = { bestseller: "#8B1A1A", new: "#2ECC71", promo: "#F59E0B" };
@@ -95,7 +82,7 @@ function Spinner() {
   );
 }
 
-function isOpen(store) {
+function isStoreOpen(store) {
   if (!store.is_open) return false;
   const now = new Date();
   const [oh,om] = (store.open_time||"00:00").split(":").map(Number);
@@ -141,7 +128,122 @@ function ComplementSelector({ complements, selected, onChange }) {
   );
 }
 
-function CustomerArea({ products, store, categories }) {
+// ─── CUSTOMER LOGIN/REGISTER ──────────────────────────────────────────────────
+function CustomerAuth({ onLogin }) {
+  const [mode, setMode] = useState("login");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [error, setError] = useState("");
+
+  function getUsers() {
+    try { return JSON.parse(localStorage.getItem("billy_users")||"[]"); } catch { return []; }
+  }
+  function saveUsers(users) { localStorage.setItem("billy_users",JSON.stringify(users)); }
+
+  function handleLogin() {
+    const users = getUsers();
+    const user = users.find(u=>u.phone===phone&&u.pwd===pwd);
+    if (!user) { setError("Telefone ou senha incorretos!"); return; }
+    localStorage.setItem("billy_current_user", JSON.stringify(user));
+    onLogin(user);
+  }
+
+  function handleRegister() {
+    if (!name||!phone||!pwd) { setError("Preencha todos os campos!"); return; }
+    const users = getUsers();
+    if (users.find(u=>u.phone===phone)) { setError("Este telefone já está cadastrado!"); return; }
+    const user = { id: Date.now(), name, phone, pwd, orders: [], createdAt: new Date().toLocaleDateString("pt-BR") };
+    saveUsers([...users, user]);
+    localStorage.setItem("billy_current_user", JSON.stringify(user));
+    onLogin(user);
+  }
+
+  return (
+    <div style={{minHeight:"100vh",background:"#1A0A0A",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <style>{globalStyles}</style>
+      <div style={{background:"#fff",borderRadius:20,padding:36,width:"100%",maxWidth:380,textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{fontSize:48,marginBottom:12}}>🍗</div>
+        <h2 className="st" style={{fontSize:26,color:"#8B1A1A",marginBottom:4}}>Billy Chicken</h2>
+        <p style={{color:"#9B8B7A",fontSize:13,marginBottom:24}}>Da nossa casa para sua casa 🥰</p>
+
+        <div style={{display:"flex",background:"#F5F0EB",borderRadius:12,padding:4,marginBottom:24}}>
+          <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="login"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="login"?"#8B1A1A":"#9B8B7A",boxShadow:mode==="login"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Entrar</button>
+          <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="register"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="register"?"#8B1A1A":"#9B8B7A",boxShadow:mode==="register"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Cadastrar</button>
+        </div>
+
+        {mode==="register"&&(
+          <div style={{marginBottom:14,textAlign:"left"}}>
+            <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Seu nome</label>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: João Silva" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          </div>
+        )}
+        <div style={{marginBottom:14,textAlign:"left"}}>
+          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>WhatsApp (com DDD)</label>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ex: 21999990000" type="tel" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+        </div>
+        <div style={{marginBottom:20,textAlign:"left"}}>
+          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Senha</label>
+          <input value={pwd} onChange={e=>setPwd(e.target.value)} type="password" placeholder="Mínimo 4 caracteres" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleRegister())} />
+        </div>
+        {error&&<p style={{color:"#EF4444",fontSize:13,marginBottom:14,background:"#FEE2E2",padding:"8px 12px",borderRadius:8}}>{error}</p>}
+        <button onClick={mode==="login"?handleLogin:handleRegister} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>
+          {mode==="login"?"Entrar →":"Criar Conta →"}
+        </button>
+        <button onClick={()=>onLogin(null)} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,marginTop:12,cursor:"pointer",padding:8}}>
+          Continuar sem cadastro
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ORDER HISTORY ─────────────────────────────────────────────────────────────
+function OrderHistory({ user, onBack }) {
+  const orders = user?.orders || [];
+  return (
+    <div style={{minHeight:"100vh",background:"#F5F0EB"}}>
+      <style>{globalStyles}</style>
+      <div style={{background:"#1A0A0A",padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
+        <button onClick={onBack} style={{background:"transparent",border:"none",color:"#fff",fontSize:24,cursor:"pointer"}}>←</button>
+        <h2 className="st" style={{color:"#fff",fontSize:22}}>Meus Pedidos</h2>
+      </div>
+      <div style={{maxWidth:560,margin:"0 auto",padding:24}}>
+        {orders.length===0?(
+          <div style={{textAlign:"center",padding:60}}>
+            <div style={{fontSize:48,marginBottom:12}}>🛵</div>
+            <p style={{fontWeight:700,fontSize:16,color:"#9B8B7A"}}>Nenhum pedido ainda</p>
+            <p style={{fontSize:14,color:"#B8AFA8",marginTop:8}}>Seus pedidos aparecerão aqui após a compra.</p>
+          </div>
+        ):(
+          [...orders].reverse().map((order,i)=>(
+            <div key={i} style={{background:"#fff",borderRadius:16,padding:20,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div>
+                  <p style={{fontWeight:700,fontSize:15}}>Pedido #{order.id}</p>
+                  <p style={{fontSize:12,color:"#9B8B7A",marginTop:2}}>{order.date} às {order.time}</p>
+                </div>
+                <span style={{background:"#D1FAE5",color:"#065F46",padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>Enviado</span>
+              </div>
+              <div style={{borderTop:"1px solid #F5F0EB",paddingTop:12}}>
+                {order.items.map((item,j)=>(
+                  <p key={j} style={{fontSize:13,color:"#6B7280",marginBottom:4}}>{item.qty}x {item.name}{item.extrasText?` (${item.extrasText})`:""}</p>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid #F5F0EB"}}>
+                  <span style={{fontSize:13,color:"#9B8B7A"}}>{order.type==="delivery"?"🛵 Entrega":"🏪 Retirada"} • {order.payment?.toUpperCase()}</span>
+                  <span className="st" style={{fontSize:16,color:"#8B1A1A"}}>R$ {order.total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── CUSTOMER AREA ────────────────────────────────────────────────────────────
+function CustomerArea({ products, store, categories, user, onLogout }) {
   const [cart,setCart]=useState([]);
   const [activeCategory,setActiveCategory]=useState("Todos");
   const [search,setSearch]=useState("");
@@ -150,10 +252,11 @@ function CustomerArea({ products, store, categories }) {
   const [showCart,setShowCart]=useState(false);
   const [step,setStep]=useState("menu");
   const [orderType,setOrderType]=useState("delivery");
-  const [info,setInfo]=useState({name:"",phone:"",address:"",payment:"pix",change:""});
-  const [orderStatus,setOrderStatus]=useState(0);
-  const open = isOpen(store);
+  const [info,setInfo]=useState({name:user?.name||"",phone:user?.phone||"",address:"",payment:"pix",change:""});
+  const [showHistory,setShowHistory]=useState(false);
+  const [currentUser,setCurrentUser]=useState(user);
 
+  const open = isStoreOpen(store);
   const sortedCats = [...categories].sort((a,b)=>a.order-b.order);
   const activeProducts = products.filter(p=>p.active);
   const allCats = ["Todos",...sortedCats.map(c=>c.name)];
@@ -167,63 +270,85 @@ function CustomerArea({ products, store, categories }) {
   const cartCount = cart.reduce((s,i)=>s+i.qty,0);
   const total = cartTotal+(orderType==="delivery"?Number(store.delivery_fee):0);
 
-  function getExtrasTotal(comps,sel) {
+  function getExtrasTotal(comps,sel){
     if(!comps)return 0;
     return comps.reduce((s,g)=>s+g.options.reduce((gs,opt,i)=>gs+(sel[`${g.id}-${i}`]||0)*opt.price,0),0);
   }
-  function getExtrasText(comps,sel) {
+  function getExtrasText(comps,sel){
     if(!comps)return "";
     const items=[];
     comps.forEach(g=>g.options.forEach((opt,i)=>{const c=sel[`${g.id}-${i}`]||0;if(c>0)items.push(`${c}x ${opt.name}`);}));
     return items.join(", ");
   }
-  function addToCart(p,comps,sel) {
+  function addToCart(p,comps,sel){
     setCart(prev=>[...prev,{...p,cartId:Date.now(),qty:1,extrasTotal:getExtrasTotal(comps,sel),extrasText:getExtrasText(comps,sel)}]);
-    setSelProduct(null); setSelComplements({});
+    setSelProduct(null);setSelComplements({});
   }
-  function changeQty(cartId,delta) {
+  function changeQty(cartId,delta){
     setCart(prev=>prev.map(i=>i.cartId===cartId?{...i,qty:i.qty+delta}:i).filter(i=>i.qty>0));
   }
-  function sendWhatsApp() {
+
+  function sendWhatsApp(){
     if(!info.name||!info.phone)return alert("Preencha nome e telefone!");
     if(orderType==="delivery"&&!info.address)return alert("Preencha o endereço!");
-    const mapsLink=orderType==="delivery"?`\n🗺️ *Ver no Maps:* https://maps.google.com/?q=${encodeURIComponent(info.address)}`:"";
-    const items=cart.map(i=>`• ${i.qty}x ${i.name}${i.extrasText?` (${i.extrasText})`:""} — R$ ${((i.price+i.extrasTotal)*i.qty).toFixed(2)}`).join("\n");
-    const msg=`🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 *Endereço:* ${info.address}${mapsLink}\n`:"🏪 *Retirada no local*\n"}\n🛒 *Itens:*\n${items}\n\n💰 *Subtotal:* R$ ${cartTotal.toFixed(2)}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${Number(store.delivery_fee).toFixed(2)}`:""}\n💵 *Total:* R$ ${total.toFixed(2)}\n💳 *Pagamento:* ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 *Tipo:* ${orderType==="delivery"?"Entrega":"Retirada"}`;
+    const mapsLink = orderType==="delivery" ? `\n🗺️ *Ver no Maps:* https://maps.google.com/?q=${encodeURIComponent(info.address)}` : "";
+    const items = cart.map(i=>`• ${i.qty}x ${i.name}${i.extrasText?` (${i.extrasText})`:""} — R$ ${((i.price+i.extrasTotal)*i.qty).toFixed(2)}`).join("\n");
+    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${Number(store.delivery_fee).toFixed(2)}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`,"_blank");
-    setStep("tracking"); setOrderStatus(0); setCart([]);
-    setTimeout(()=>setOrderStatus(1),3000);
+
+    // Save order to user history
+    if(currentUser){
+      const now = new Date();
+      const newOrder = {
+        id: Date.now(),
+        date: now.toLocaleDateString("pt-BR"),
+        time: now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),
+        items: cart.map(i=>({name:i.name,qty:i.qty,extrasText:i.extrasText})),
+        total, type: orderType, payment: info.payment,
+      };
+      const users = JSON.parse(localStorage.getItem("billy_users")||"[]");
+      const updated = users.map(u=>u.id===currentUser.id?{...u,orders:[...(u.orders||[]),newOrder]}:u);
+      localStorage.setItem("billy_users",JSON.stringify(updated));
+      const updatedUser = {...currentUser,orders:[...(currentUser.orders||[]),newOrder]};
+      setCurrentUser(updatedUser);
+      localStorage.setItem("billy_current_user",JSON.stringify(updatedUser));
+    }
+
+    setStep("success");
+    setCart([]);
   }
 
-  const parsedC = selProduct?parseC(selProduct.complements):[];
+  if(showHistory&&currentUser) return <OrderHistory user={currentUser} onBack={()=>setShowHistory(false)} />;
 
+  // Loja fechada — tela bonita
   if(!open) return (
     <div style={{minHeight:"100vh",background:"#1A0A0A",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",padding:24,textAlign:"center"}}>
       <style>{globalStyles}</style>
-      <div style={{fontSize:64,marginBottom:20}}>🔴</div>
-      <h1 className="st" style={{color:store.title_color||"#8B1A1A",fontSize:36,marginBottom:12}}>{store.name}</h1>
-      <p style={{color:"rgba(255,255,255,0.6)",fontSize:16,marginBottom:8}}>Estamos fechados no momento.</p>
-      <p style={{color:"rgba(255,255,255,0.4)",fontSize:14}}>Abrimos às {store.open_time} • Fechamos às {store.close_time}</p>
+      <div style={{width:100,height:100,background:"#fff",borderRadius:store.logo_shape==="circle"?"50%":20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?0:48,overflow:"hidden",marginBottom:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+        {(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?<img src={store.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}} />:store.logo}
+      </div>
+      <h1 className="st" style={{color:store.title_color||"#8B1A1A",fontSize:36,marginBottom:8}}>{store.name}</h1>
+      <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginBottom:24,fontStyle:"italic"}}>{store.slogan}</p>
+      <div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 32px",marginBottom:16}}>
+        <p style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:600,marginBottom:4}}>Estamos fechados no momento</p>
+        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Abrimos às {store.open_time} • Fechamos às {store.close_time}</p>
+      </div>
+      <p style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Volte em breve! 🥰</p>
     </div>
   );
 
-  if(step==="tracking") return (
-    <div style={{minHeight:"100vh",background:"#F5F0EB",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+  if(step==="success") return (
+    <div style={{minHeight:"100vh",background:"#F5F0EB",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
       <style>{globalStyles}</style>
-      <div style={{textAlign:"center",marginBottom:32}}>
-        <div style={{fontSize:64,marginBottom:12}}>🛵</div>
-        <h1 className="st" style={{fontSize:28,color:"#8B1A1A"}}>Pedido Enviado!</h1>
-        <p style={{color:"#9B8B7A",marginTop:8}}>Acompanhe o status abaixo</p>
+      <div style={{background:"#fff",borderRadius:24,padding:40,maxWidth:400,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.1)"}}>
+        <div style={{fontSize:64,marginBottom:16}}>🎉</div>
+        <h2 className="st" style={{fontSize:26,color:"#8B1A1A",marginBottom:8}}>Pedido Enviado!</h2>
+        <p style={{color:"#9B8B7A",fontSize:14,marginBottom:24,lineHeight:1.6}}>Seu pedido foi enviado pelo WhatsApp. Em breve você receberá a confirmação!</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <button onClick={()=>setStep("menu")} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer"}}>🍔 Fazer Novo Pedido</button>
+          {currentUser&&<button onClick={()=>setShowHistory(true)} style={{background:"#F5F0EB",border:"none",borderRadius:12,padding:"14px",fontWeight:700,fontSize:14,cursor:"pointer",color:"#8B1A1A"}}>📋 Ver Meus Pedidos</button>}
+        </div>
       </div>
-      <div style={{background:"#fff",borderRadius:20,padding:32,width:"100%",maxWidth:400,boxShadow:"0 4px 30px rgba(0,0,0,0.08)",marginBottom:24}}>
-        {STATUS_FLOW.map((s,i)=>(
-          <div key={s} style={{display:"flex",alignItems:"center",gap:16,marginBottom:i<4?20:0}}>
-            <div style={{width:36,height:36,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:i<=orderStatus?"#8B1A1A":"#F0EAE3",color:i<=orderStatus?"#fff":"#aaa",fontWeight:800,fontSize:14,flexShrink:0,transition:"all 0.5s"}}>{i<=orderStatus?"✓":i+1}</div>
-            <span style={{fontWeight:i===orderStatus?700:400,color:i<=orderStatus?"#1A1A1A":"#aaa"}}>{STATUS_LABELS[s]}</span>
-          </div>
-        ))}
-      </div>
-      <button onClick={()=>{setStep("menu");setOrderStatus(0);}} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"14px 32px",fontWeight:700,cursor:"pointer",fontSize:15}}>Fazer Novo Pedido</button>
     </div>
   );
 
@@ -296,12 +421,25 @@ function CustomerArea({ products, store, categories }) {
     </div>
   );
 
+  const parsedC = selProduct?parseC(selProduct.complements):[];
+
   return (
     <div style={{minHeight:"100vh",background:"#F5F0EB"}}>
       <style>{globalStyles}</style>
       <div style={{position:"relative",height:260}}>
         <img src={store.banner} alt="banner" style={{width:"100%",height:"100%",objectFit:"cover"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(20,5,5,0.85))"}} />
+        {/* User button top right */}
+        <div style={{position:"absolute",top:16,right:16,display:"flex",gap:8}}>
+          {currentUser?(
+            <>
+              <button onClick={()=>setShowHistory(true)} style={{background:"rgba(255,255,255,0.15)",backdropFilter:"blur(8px)",border:"none",color:"#fff",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📋 Pedidos</button>
+              <button onClick={()=>{localStorage.removeItem("billy_current_user");onLogout();}} style={{background:"rgba(255,255,255,0.15)",backdropFilter:"blur(8px)",border:"none",color:"#fff",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Sair</button>
+            </>
+          ):(
+            <button onClick={onLogout} style={{background:"rgba(255,255,255,0.15)",backdropFilter:"blur(8px)",border:"none",color:"#fff",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>👤 Entrar</button>
+          )}
+        </div>
         <div style={{position:"absolute",bottom:20,left:20,right:20,color:"#fff"}}>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10}}>
             <div style={{width:60,height:60,background:"#fff",borderRadius:store.logo_shape==="circle"?"50%":14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?0:30,overflow:"hidden",border:"3px solid rgba(255,255,255,0.3)",flexShrink:0}}>
@@ -310,6 +448,7 @@ function CustomerArea({ products, store, categories }) {
             <div>
               <h1 className="st" style={{fontSize:28,color:store.title_color||"#8B1A1A",textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{store.name}</h1>
               <p style={{fontSize:12,opacity:0.8,marginTop:2}}>{store.category}</p>
+              {currentUser&&<p style={{fontSize:11,opacity:0.7,marginTop:2}}>Olá, {currentUser.name}! 👋</p>}
             </div>
           </div>
           <p style={{fontSize:12,opacity:0.7,marginBottom:8,fontStyle:"italic"}}>{store.slogan} 🥰</p>
@@ -321,12 +460,14 @@ function CustomerArea({ products, store, categories }) {
           </div>
         </div>
       </div>
+
       <div style={{background:"#fff",padding:"12px 20px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
         <div style={{position:"relative",maxWidth:600,margin:"0 auto"}}>
           <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}>🔍</span>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:12,padding:"10px 14px 10px 42px",fontSize:14,outline:"none"}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
         </div>
       </div>
+
       <div style={{background:"#fff",borderBottom:"1px solid #E5DDD5",overflowX:"auto",whiteSpace:"nowrap",padding:"0 16px",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"inline-flex",gap:4,padding:"10px 0"}}>
           {allCats.map(cat=>(
@@ -334,6 +475,7 @@ function CustomerArea({ products, store, categories }) {
           ))}
         </div>
       </div>
+
       <div style={{maxWidth:900,margin:"0 auto",padding:"20px 16px"}}>
         {sortedCats.filter(cat=>activeCategory==="Todos"||activeCategory===cat.name).map(cat=>{
           const cp=filtered.filter(p=>p.category===cat.name);
@@ -363,6 +505,7 @@ function CustomerArea({ products, store, categories }) {
           );
         })}
       </div>
+
       {cartCount>0&&(
         <button onClick={()=>setShowCart(true)} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:"15px 28px",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 8px 28px rgba(139,26,26,0.4)",display:"flex",alignItems:"center",gap:12,zIndex:200,whiteSpace:"nowrap"}}>
           <span style={{background:"rgba(255,255,255,0.25)",borderRadius:20,padding:"2px 10px",fontSize:13}}>{cartCount}</span>
@@ -370,6 +513,7 @@ function CustomerArea({ products, store, categories }) {
           <span>R$ {cartTotal.toFixed(2)}</span>
         </button>
       )}
+
       {selProduct&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setSelProduct(null)}>
           <div style={{background:"#fff",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:560,maxHeight:"92vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -383,16 +527,14 @@ function CustomerArea({ products, store, categories }) {
               <p style={{color:"#9B8B7A",lineHeight:1.7,marginBottom:16}}>{selProduct.description}</p>
               <ComplementSelector complements={parsedC} selected={selComplements} onChange={setSelComplements} />
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"1px solid #F5F0EB"}}>
-                <div>
-                  <span className="st" style={{fontSize:22,color:"#8B1A1A"}}>R$ {(Number(selProduct.price)+getExtrasTotal(parsedC,selComplements)).toFixed(2)}</span>
-                  {getExtrasTotal(parsedC,selComplements)>0&&<p style={{fontSize:11,color:"#9B8B7A"}}>inclui adicionais</p>}
-                </div>
+                <span className="st" style={{fontSize:22,color:"#8B1A1A"}}>R$ {(Number(selProduct.price)+getExtrasTotal(parsedC,selComplements)).toFixed(2)}</span>
                 <button onClick={()=>addToCart(selProduct,parsedC,selComplements)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Adicionar</button>
               </div>
             </div>
           </div>
         </div>
       )}
+
       {showCart&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowCart(false)}>
           <div style={{background:"#fff",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:560,maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -428,62 +570,7 @@ function CustomerArea({ products, store, categories }) {
   );
 }
 
-const FORM_INPUT_STYLE={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
-
-function ComplementEditor({value,onChange}){
-  const groups=parseC(value);
-  const upd=(arr)=>onChange(JSON.stringify(arr));
-  return (
-    <div>
-      {groups.map(g=>(
-        <div key={g.id} style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:12}}>
-          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
-            <input value={g.title} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,title:e.target.value}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"8px 12px",outline:"none",fontSize:14,fontWeight:700}} placeholder="Nome do grupo" />
-            <input type="number" value={g.max} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,max:parseInt(e.target.value)||1}:x))} style={{width:60,border:"2px solid #E5DDD5",borderRadius:8,padding:8,outline:"none",fontSize:14,textAlign:"center"}} min={1} title="Máximo" />
-            <button onClick={()=>upd(groups.filter(x=>x.id!==g.id))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"#991B1B",fontWeight:700}}>✕</button>
-          </div>
-          {g.options.map((opt,oi)=>(
-            <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
-              <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13}} placeholder="Nome" />
-              <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
-              <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
-            </div>
-          ))}
-          <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
-        </div>
-      ))}
-      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
-    </div>
-  );
-}
-
-function PForm({data,setData,onSave,onCancel,title,categories,saving}){
-  const IS=FORM_INPUT_STYLE;
-  return(
-    <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 4px 24px rgba(0,0,0,0.1)"}}>
-      <h3 style={{fontWeight:800,marginBottom:16}}>{title}</h3>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Nome *</label><input value={data.name} onChange={e=>setData(p=>({...p,name:e.target.value}))} style={IS} /></div>
-        <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Preço *</label><input value={data.price} onChange={e=>setData(p=>({...p,price:e.target.value}))} style={IS} /></div>
-      </div>
-      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Categoria</label>
-      <select value={data.category} onChange={e=>setData(p=>({...p,category:e.target.value}))} style={IS}>{[...categories].sort((a,b)=>a.order-b.order).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>
-      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Tag</label>
-      <select value={data.tag||""} onChange={e=>setData(p=>({...p,tag:e.target.value||null}))} style={IS}><option value="">Sem tag</option><option value="bestseller">Mais Vendido</option><option value="new">Novo</option><option value="promo">Promoção</option></select>
-      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Descrição</label>
-      <textarea value={data.description} onChange={e=>setData(p=>({...p,description:e.target.value}))} style={{...IS,height:70,resize:"none"}} />
-      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Foto do produto</label>
-      <ImageUpload value={data.image} onChange={img=>setData(p=>({...p,image:img}))} style={{marginBottom:16}} />
-      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
-      <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
-      <div style={{display:"flex",gap:10,marginTop:16}}>
-        <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
-        <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
-      </div>
-    </div>
-  );
-}
-
+// ─── ADMIN AREA ───────────────────────────────────────────────────────────────
 function AdminArea({ products, setProducts, store, setStore, categories, setCategories }) {
   const [section,setSection]=useState("products");
   const [sidebarOpen,setSidebarOpen]=useState(true);
@@ -511,45 +598,30 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   async function saveNewProduct(){
     if(!newP.name||!newP.price)return notify("Preencha nome e preço!","error");
     setSaving(true);
-    try{
-      const result=await db("products","POST",{...newP,price:parseFloat(newP.price),active:true,image:newP.image||"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",category:newP.category||(categories[0]?.name||"Geral")});
-      if(!result||!result[0])throw new Error("Resposta vazia do servidor");
-      setProducts(prev=>[...prev,result[0]]);
-      setShowAdd(false);
-      setNewP({name:"",price:"",category:"",description:"",image:"",tag:"",complements:"[]"});
-      notify("Produto adicionado!");
-    }catch(e){
-      console.error(e);
-      notify("Erro ao salvar produto. Veja o console (F12) para detalhes.","error");
-    }
+    const cat = newP.category||(categories.sort((a,b)=>a.order-b.order)[0]?.name||"Geral");
+    const result=await db("products","POST",{...newP,price:parseFloat(newP.price),active:true,image:newP.image||"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",category:cat});
+    setProducts(prev=>[...prev,result[0]]);
+    setShowAdd(false);
+    setNewP({name:"",price:"",category:"",description:"",image:"",tag:"",complements:"[]"});
     setSaving(false);
+    notify("Produto adicionado!");
   }
   async function saveEditProduct(){
     if(!editingProduct.name||!editingProduct.price)return notify("Preencha nome e preço!","error");
     setSaving(true);
-    try{
-      const {id,created_at,...data}=editingProduct;
-      await db("products","PATCH",{...data,price:parseFloat(data.price)},`?id=eq.${id}`);
-      setProducts(prev=>prev.map(p=>p.id===id?{...editingProduct,price:parseFloat(editingProduct.price)}:p));
-      setEditingProduct(null);
-      notify("Produto salvo!");
-    }catch(e){
-      console.error(e);
-      notify("Erro ao salvar produto. Veja o console (F12) para detalhes.","error");
-    }
+    const {id,created_at,...data}=editingProduct;
+    await db("products","PATCH",{...data,price:parseFloat(data.price)},`?id=eq.${id}`);
+    setProducts(prev=>prev.map(p=>p.id===id?{...editingProduct,price:parseFloat(editingProduct.price)}:p));
+    setEditingProduct(null);
     setSaving(false);
+    notify("Produto salvo!");
   }
   async function saveStore(){
     setSaving(true);
-    try{
-      const {id,...data}=store;
-      await db("store","PATCH",data,"?id=eq.1");
-      notify("Loja salva!");
-    }catch(e){
-      console.error(e);
-      notify("Erro ao salvar loja. Veja o console (F12) para detalhes.","error");
-    }
+    const {id,...data}=store;
+    await db("store","PATCH",data,"?id=eq.1");
     setSaving(false);
+    notify("Loja salva!");
   }
   async function toggleStore(){
     const v=!store.is_open;
@@ -559,8 +631,9 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   }
 
   function addCategory(){
-    if(!newCatName)return;
-    setCategories(prev=>[...prev,{id:Date.now(),name:newCatName,order:prev.length+1}]);
+    if(!newCatName.trim())return;
+    const newCat={id:Date.now(),name:newCatName.trim(),order:categories.length+1};
+    setCategories(prev=>[...prev,newCat]);
     setNewCatName("");
     notify("Categoria adicionada!");
   }
@@ -578,8 +651,66 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     setCategories(s.map((c,j)=>j===i?{...c,order:s[i+1].order}:j===i+1?{...c,order:s[i].order}:c));
   }
 
+  function ComplementEditor({value,onChange}){
+    const groups=parseC(value);
+    const upd=(arr)=>onChange(JSON.stringify(arr));
+    return(
+      <div>
+        {groups.map(g=>(
+          <div key={g.id} style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:12}}>
+            <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
+              <input value={g.title} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,title:e.target.value}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"8px 12px",outline:"none",fontSize:14,fontWeight:700}} placeholder="Nome do grupo" />
+              <input type="number" value={g.max} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,max:parseInt(e.target.value)||1}:x))} style={{width:60,border:"2px solid #E5DDD5",borderRadius:8,padding:8,outline:"none",fontSize:14,textAlign:"center"}} min={1} title="Máximo" />
+              <button onClick={()=>upd(groups.filter(x=>x.id!==g.id))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"#991B1B",fontWeight:700}}>✕</button>
+            </div>
+            {g.options.map((opt,oi)=>(
+              <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
+                <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13}} placeholder="Nome" />
+                <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
+                <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
+              </div>
+            ))}
+            <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
+          </div>
+        ))}
+        <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
+      </div>
+    );
+  }
+
   const IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
   const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
+
+  function PForm({data,setData,onSave,onCancel,title}){
+    const catList = [...categories].sort((a,b)=>a.order-b.order);
+    return(
+      <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 4px 24px rgba(0,0,0,0.1)"}}>
+        <h3 style={{fontWeight:800,marginBottom:16}}>{title}</h3>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Nome *</label><input value={data.name} onChange={e=>setData(p=>({...p,name:e.target.value}))} style={IS} /></div>
+          <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Preço *</label><input value={data.price} onChange={e=>setData(p=>({...p,price:e.target.value}))} style={IS} /></div>
+        </div>
+        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Categoria</label>
+        <select value={data.category||catList[0]?.name||""} onChange={e=>setData(p=>({...p,category:e.target.value}))} style={IS}>
+          {catList.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Tag</label>
+        <select value={data.tag||""} onChange={e=>setData(p=>({...p,tag:e.target.value||null}))} style={IS}>
+          <option value="">Sem tag</option><option value="bestseller">Mais Vendido</option><option value="new">Novo</option><option value="promo">Promoção</option>
+        </select>
+        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Descrição</label>
+        <textarea value={data.description} onChange={e=>setData(p=>({...p,description:e.target.value}))} style={{...IS,height:70,resize:"none"}} />
+        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Foto do produto</label>
+        <ImageUpload value={data.image} onChange={img=>setData(p=>({...p,image:img}))} style={{marginBottom:16}} />
+        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
+        <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
+        <div style={{display:"flex",gap:10,marginTop:16}}>
+          <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
+          <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
+        </div>
+      </div>
+    );
+  }
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
@@ -619,11 +750,11 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <p style={{color:"#9B8B7A",fontSize:14}}>{products.length} produtos</p>
                 <button onClick={()=>setShowAdd(true)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
               </div>
-              {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" categories={categories} saving={saving} />}
+              {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" />}
               {editingProduct&&(
                 <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}} onClick={()=>setEditingProduct(null)}>
                   <div style={{background:"#fff",borderRadius:20,padding:28,width:"100%",maxWidth:560,maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-                    <PForm data={editingProduct} setData={setEditingProduct} onSave={saveEditProduct} onCancel={()=>setEditingProduct(null)} title="Editar Produto" categories={categories} saving={saving} />
+                    <PForm data={editingProduct} setData={setEditingProduct} onSave={saveEditProduct} onCancel={()=>setEditingProduct(null)} title="Editar Produto" />
                   </div>
                 </div>
               )}
@@ -656,9 +787,10 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
               <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>Adicionar Categoria</h3>
                 <div style={{display:"flex",gap:10}}>
-                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} />
+                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
                   <button onClick={addCategory} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Adicionar</button>
                 </div>
+                <p style={{fontSize:12,color:"#9B8B7A",marginTop:8}}>Dica: use emojis no nome. Ex: 🍕 Pizzas, 🌮 Tacos</p>
               </div>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>Categorias ({categories.length})</h3>
@@ -682,7 +814,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
           {section==="store"&&(
             <div style={{maxWidth:600}}>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
-                <h3 style={{fontWeight:800,marginBottom:20}}>🏪 Informações da Loja</h3>
+                <h3 style={{fontWeight:800,marginBottom:20}}>🏪 Informações</h3>
                 {[["name","Nome da Loja"],["slogan","Slogan"],["category","Categoria"],["delivery_time","Tempo de Entrega"],["prep_time","Tempo de Preparo"]].map(([f,l])=>(
                   <div key={f} style={{marginBottom:14}}>
                     <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>{l}</label>
@@ -701,7 +833,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>🎨 Aparência</h3>
                 <div style={{marginBottom:16}}>
-                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Cor do nome da loja</label>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Cor do nome</label>
                   <div style={{display:"flex",gap:12,alignItems:"center"}}>
                     <input type="color" value={store.title_color||"#8B1A1A"} onChange={e=>setStore(p=>({...p,title_color:e.target.value}))} style={{width:50,height:40,border:"none",borderRadius:8,cursor:"pointer"}} />
                     <input value={store.title_color||"#8B1A1A"} onChange={e=>setStore(p=>({...p,title_color:e.target.value}))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
@@ -725,7 +857,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
               </div>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>🏷️ Logo</h3>
-                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Emoji (ex: 🍗 🍔 🌮)</label>
+                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Emoji</label>
                 <input placeholder="🍗" value={(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?"":store.logo||""} onChange={e=>setStore(p=>({...p,logo:e.target.value}))} style={{...IS,fontSize:24,textAlign:"center"}} />
                 <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Ou faça upload</label>
                 <ImageUpload value={store.logo?.startsWith("data:")?store.logo:null} onChange={img=>setStore(p=>({...p,logo:img}))} />
@@ -746,7 +878,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             <div style={{textAlign:"center",padding:60,color:"#9B8B7A"}}>
               <div style={{fontSize:48,marginBottom:12}}>📱</div>
               <p style={{fontWeight:700,fontSize:18,marginBottom:12}}>Pedidos via WhatsApp</p>
-              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no WhatsApp <strong style={{color:"#8B1A1A"}}>(21) 97701-6114</strong> com todos os detalhes.</p>
+              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
             </div>
           )}
 
@@ -784,9 +916,17 @@ export default function App() {
   const [categories,setCategories]=useState(DEFAULT_CATEGORIES);
   const [loading,setLoading]=useState(true);
   const [adminLoggedIn,setAdminLoggedIn]=useState(false);
+  const [customerUser,setCustomerUser]=useState(null);
+  const [showAuth,setShowAuth]=useState(false);
   const isAdmin=window.location.pathname==="/admin"||window.location.hash==="#admin";
 
   useEffect(()=>{
+    // Check saved user
+    try {
+      const saved = localStorage.getItem("billy_current_user");
+      if(saved) setCustomerUser(JSON.parse(saved));
+    } catch {}
+
     async function load(){
       try{
         const [sd,pd]=await Promise.all([
@@ -797,7 +937,15 @@ export default function App() {
         if(pd?.length>0){
           setProducts(pd);
         }else{
-          for(const p of INITIAL_PRODUCTS)await db("products","POST",p);
+          const INITIAL=[
+            {name:"Billy Clássico",category:"🍔 Hambúrgueres",price:32.9,description:"Blend de frango artesanal, queijo cheddar, alface, tomate, cebola e molho especial Billy.",image:"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",tag:"bestseller",active:true,complements:JSON.stringify([{id:1,title:"Adicionar Molhos",options:[{name:"Molho Barbecue",price:2},{name:"Molho Ranch",price:2},{name:"Molho Chipotle",price:2}],max:2}])},
+            {name:"Billy Bacon Crocante",category:"🍔 Hambúrgueres",price:39.9,description:"Blend especial, bacon crocante, queijo coalho, cebola caramelizada e maionese defumada.",image:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80",tag:"new",active:true,complements:JSON.stringify([])},
+            {name:"Combo Billy Família",category:"🍗 Combos",price:89.9,description:"2 Billy Clássico + 1 Billy Bacon + 2 Batatas Grandes + 4 Refrigerantes 350ml.",image:"https://images.unsplash.com/photo-1561758033-48d52648ae8b?w=400&q=80",tag:"promo",active:true,complements:JSON.stringify([])},
+            {name:"Batata Frita Rústica",category:"🍟 Acompanhamentos",price:18.9,description:"Batatas rústicas temperadas com ervas e flor de sal.",image:"https://images.unsplash.com/photo-1529990098630-4022df7bb7cc?w=400&q=80",tag:null,active:true,complements:JSON.stringify([{id:1,title:"Escolha o Molho",options:[{name:"Ketchup",price:0},{name:"Cheddar",price:3}],max:1}])},
+            {name:"Coca-Cola 350ml",category:"🥤 Bebidas",price:7.9,description:"Coca-Cola gelada.",image:"https://images.unsplash.com/photo-1629203851122-3726555cf519?w=400&q=80",tag:null,active:true,complements:JSON.stringify([])},
+            {name:"Brownie com Sorvete",category:"🍰 Sobremesas",price:19.9,description:"Brownie quentinho com sorvete de creme e calda de chocolate.",image:"https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&q=80",tag:"new",active:true,complements:JSON.stringify([])},
+          ];
+          for(const p of INITIAL)await db("products","POST",p);
           const fresh=await db("products","GET",null,"?order=id.asc");
           setProducts(fresh||[]);
         }
@@ -808,9 +956,13 @@ export default function App() {
   },[]);
 
   if(loading)return <Spinner />;
+
   if(isAdmin){
     if(!adminLoggedIn)return <AdminLogin onLogin={()=>setAdminLoggedIn(true)} />;
     return <AdminArea products={products} setProducts={setProducts} store={store} setStore={setStore} categories={categories} setCategories={setCategories} />;
   }
-  return <CustomerArea products={products} store={store} categories={categories} />;
+
+  if(showAuth) return <CustomerAuth onLogin={(user)=>{setCustomerUser(user);setShowAuth(false);}} />;
+
+  return <CustomerArea products={products} store={store} categories={categories} user={customerUser} onLogout={()=>{setCustomerUser(null);setShowAuth(true);}} />;
 }
