@@ -17,7 +17,14 @@ async function db(table, method = "GET", body = null, filter = "") {
     body: body ? JSON.stringify(body) : null,
   });
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  const data = text ? JSON.parse(text) : null;
+  if(!res.ok){
+    const err = new Error(data?.message || `Erro ${res.status} ao acessar "${table}"`);
+    err.status = res.status;
+    err.details = data;
+    throw err;
+  }
+  return data;
 }
 
 const globalStyles = `
@@ -40,7 +47,33 @@ const DEFAULT_STORE = {
   open_days: "0,1,2,3,4,5,6",
   banner: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1200&q=80",
   logo: "🍗", logo_shape: "circle", title_color: "#8B1A1A", is_open: true,
+  store_address: "", store_lat: null, store_lng: null, max_delivery_km: 10,
 };
+
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+async function geocodeAddress(address) {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(address)}`, {
+    headers: { "Accept-Language": "pt-BR" },
+  });
+  if(!res.ok) throw new Error("Falha ao consultar o serviço de mapas");
+  const data = await res.json();
+  if(!data || data.length===0) throw new Error("Endereço não encontrado. Tente incluir bairro e cidade.");
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+}
+
+function findDeliveryFee(distanceKm, zones) {
+  if(!zones || zones.length===0) return null;
+  const sorted = [...zones].sort((a,b)=>a.min_km-b.min_km);
+  return sorted.find(z => distanceKm >= z.min_km && distanceKm <= z.max_km) || null;
+}
 
 const WEEKDAYS = [
   { val: 0, label: "Dom" },
@@ -266,7 +299,7 @@ function OrderHistory({ user, onBack }) {
 }
 
 // ─── CUSTOMER AREA ────────────────────────────────────────────────────────────
-function CustomerArea({ products, store, categories, user, onLogout }) {
+function CustomerArea({ products, store, categories, deliveryZones, user, onLogout }) {
   const [cart,setCart]=useState([]);
   const [activeCategory,setActiveCategory]=useState("Todos");
   const [search,setSearch]=useState("");
@@ -278,6 +311,7 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
   const [info,setInfo]=useState({name:user?.name||"",phone:user?.phone||"",address:"",payment:"pix",change:""});
   const [showHistory,setShowHistory]=useState(false);
   const [currentUser,setCurrentUser]=useState(user);
+  const [deliveryCalc,setDeliveryCalc]=useState({status:"idle",distanceKm:null,fee:null,error:null});
 
   const open = isStoreOpen(store);
   const sortedCats = [...categories].sort((a,b)=>a.order-b.order);
@@ -291,7 +325,43 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
 
   const cartTotal = cart.reduce((s,i)=>s+(i.price+i.extrasTotal)*i.qty,0);
   const cartCount = cart.reduce((s,i)=>s+i.qty,0);
-  const total = cartTotal+(orderType==="delivery"?Number(store.delivery_fee):0);
+  const hasZones = deliveryZones && deliveryZones.length>0;
+  const deliveryFeeToUse = orderType!=="delivery" ? 0 : (hasZones ? (deliveryCalc.fee ?? 0) : Number(store.delivery_fee));
+  const total = cartTotal+deliveryFeeToUse;
+
+  async function calculateDelivery(){
+    if(!info.address || info.address.trim().length<8){
+      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:"Digite o endereço completo (rua, número, bairro, cidade)."});
+      return;
+    }
+    if(!hasZones){
+      setDeliveryCalc({status:"idle",distanceKm:null,fee:null,error:null});
+      return;
+    }
+    if(store.store_lat==null||store.store_lng==null){
+      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:"A loja ainda não configurou a localização para cálculo automático de frete. Entre em contato pelo WhatsApp."});
+      return;
+    }
+    setDeliveryCalc({status:"loading",distanceKm:null,fee:null,error:null});
+    try{
+      const geo = await geocodeAddress(info.address);
+      const distanceKm = haversineDistanceKm(store.store_lat, store.store_lng, geo.lat, geo.lng);
+      const maxKm = Number(store.max_delivery_km)||0;
+      if(maxKm>0 && distanceKm>maxKm){
+        setDeliveryCalc({status:"out_of_range",distanceKm,fee:null,error:`Seu endereço está a ${distanceKm.toFixed(1)}km da loja, fora da nossa área de entrega (até ${maxKm}km).`});
+        return;
+      }
+      const zone = findDeliveryFee(distanceKm, deliveryZones);
+      if(!zone){
+        setDeliveryCalc({status:"out_of_range",distanceKm,fee:null,error:`Não encontramos uma faixa de entrega para ${distanceKm.toFixed(1)}km. Entre em contato pelo WhatsApp para confirmar.`});
+        return;
+      }
+      setDeliveryCalc({status:"ok",distanceKm,fee:Number(zone.fee),error:null});
+    }catch(e){
+      console.error(e);
+      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:e.message||"Não foi possível calcular a distância. Confira o endereço e tente novamente."});
+    }
+  }
 
   function getExtrasTotal(comps,sel){
     if(!comps)return 0;
@@ -314,9 +384,11 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
   function sendWhatsApp(){
     if(!info.name||!info.phone)return alert("Preencha nome e telefone!");
     if(orderType==="delivery"&&!info.address)return alert("Preencha o endereço!");
+    if(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")return alert("Calcule o frete antes de enviar o pedido (botão 'Calcular frete').");
     const mapsLink = orderType==="delivery" ? `\n🗺️ *Ver no Maps:* https://maps.google.com/?q=${encodeURIComponent(info.address)}` : "";
+    const distanceText = orderType==="delivery"&&hasZones&&deliveryCalc.distanceKm!=null ? ` (${deliveryCalc.distanceKm.toFixed(1)}km)` : "";
     const items = cart.map(i=>`• ${i.qty}x ${i.name}${i.extrasText?` (${i.extrasText})`:""} — R$ ${((i.price+i.extrasTotal)*i.qty).toFixed(2)}`).join("\n");
-    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${Number(store.delivery_fee).toFixed(2)}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
+    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${deliveryFeeToUse.toFixed(2)}${distanceText}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`,"_blank");
 
     // Save order to user history
@@ -409,8 +481,21 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
           {orderType==="delivery"&&(
             <div>
               <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço completo *</label>
-              <input type="text" placeholder="Rua, número, bairro, cidade" value={info.address} onChange={e=>setInfo(p=>({...p,address:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+              <input type="text" placeholder="Rua, número, bairro, cidade" value={info.address} onChange={e=>{setInfo(p=>({...p,address:e.target.value}));setDeliveryCalc({status:"idle",distanceKm:null,fee:null,error:null});}} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
               {info.address&&<a href={`https://maps.google.com/?q=${encodeURIComponent(info.address)}`} target="_blank" rel="noreferrer" style={{fontSize:12,color:"#8B1A1A",fontWeight:600}}>🗺️ Ver no Google Maps</a>}
+              {hasZones&&(
+                <div style={{marginTop:12}}>
+                  <button onClick={calculateDelivery} disabled={deliveryCalc.status==="loading"} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:deliveryCalc.status==="loading"?"default":"pointer",opacity:deliveryCalc.status==="loading"?0.7:1}}>
+                    {deliveryCalc.status==="loading"?"Calculando...":"📍 Calcular frete"}
+                  </button>
+                  {deliveryCalc.status==="ok"&&(
+                    <p style={{fontSize:13,color:"#2ECC71",fontWeight:700,marginTop:8}}>✓ {deliveryCalc.distanceKm.toFixed(1)}km da loja — frete R$ {deliveryCalc.fee.toFixed(2)}</p>
+                  )}
+                  {(deliveryCalc.status==="error"||deliveryCalc.status==="out_of_range")&&(
+                    <p style={{fontSize:13,color:"#EF4444",fontWeight:600,marginTop:8}}>⚠️ {deliveryCalc.error}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -440,11 +525,11 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
             </div>
           ))}
           <div style={{borderTop:"1px solid #E5DDD5",marginTop:12,paddingTop:12}}>
-            {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega</span><span>R$ {Number(store.delivery_fee).toFixed(2)}</span></div>}
+            {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega</span><span>{hasZones&&deliveryCalc.status!=="ok"?"a calcular":`R$ ${deliveryFeeToUse.toFixed(2)}`}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"#8B1A1A"}}>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
-        <button onClick={sendWhatsApp} style={{width:"100%",background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
+        <button onClick={sendWhatsApp} disabled={orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok"} style={{width:"100%",background:(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
       </div>
     </div>
   );
@@ -483,7 +568,7 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
           <div style={{display:"flex",gap:10,fontSize:11,flexWrap:"wrap"}}>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🕐 {store.delivery_time}</span>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>📦 Mín. R$ {Number(store.min_order).toFixed(2)}</span>
-            <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🛵 R$ {Number(store.delivery_fee).toFixed(2)}</span>
+            <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🛵 {hasZones?`A partir de R$ ${Math.min(...deliveryZones.map(z=>Number(z.fee))).toFixed(2)}`:`R$ ${Number(store.delivery_fee).toFixed(2)}`}</span>
             <span style={{background:"#2ECC71",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Aberto • Fecha {store.close_time}</span>
           </div>
         </div>
@@ -670,7 +755,7 @@ function PForm({data,setData,onSave,onCancel,title,categories,saving}){
   );
 }
 
-function AdminArea({ products, setProducts, store, setStore, categories, setCategories }) {
+function AdminArea({ products, setProducts, store, setStore, categories, setCategories, deliveryZones, setDeliveryZones }) {
   const [section,setSection]=useState("products");
   const [sidebarOpen,setSidebarOpen]=useState(true);
   const [notif,setNotif]=useState(null);
@@ -680,8 +765,62 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   const [saving,setSaving]=useState(false);
   const [editCat,setEditCat]=useState(null);
   const [newCatName,setNewCatName]=useState("");
+  const [newZone,setNewZone]=useState({min_km:"",max_km:"",fee:""});
+  const [geocoding,setGeocoding]=useState(false);
 
   function notify(msg,type="success"){setNotif({msg,type});setTimeout(()=>setNotif(null),3000);}
+
+  async function locateStore(){
+    if(!store.store_address||store.store_address.trim().length<8){
+      return notify("Digite o endereço completo da loja primeiro.","error");
+    }
+    setGeocoding(true);
+    try{
+      const geo = await geocodeAddress(store.store_address);
+      setStore(p=>({...p,store_lat:geo.lat,store_lng:geo.lng}));
+      notify("Localização encontrada! Não esqueça de clicar em Salvar Alterações.");
+    }catch(e){
+      console.error(e);
+      notify(e.message||"Não foi possível localizar esse endereço.","error");
+    }
+    setGeocoding(false);
+  }
+
+  async function addZone(){
+    const min=parseFloat(newZone.min_km), max=parseFloat(newZone.max_km), fee=parseFloat(newZone.fee);
+    if(isNaN(min)||isNaN(max)||isNaN(fee))return notify("Preencha km inicial, km final e valor.","error");
+    if(min>=max)return notify("O km inicial deve ser menor que o km final.","error");
+    try{
+      const result=await db("delivery_zones","POST",{min_km:min,max_km:max,fee});
+      if(!result||!result[0])throw new Error("Resposta vazia do servidor");
+      setDeliveryZones(prev=>[...prev,result[0]].sort((a,b)=>a.min_km-b.min_km));
+      setNewZone({min_km:"",max_km:"",fee:""});
+      notify("Faixa de entrega adicionada!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao salvar faixa. Veja o console (F12).","error");
+    }
+  }
+  async function deleteZone(id){
+    try{
+      await db("delivery_zones","DELETE",null,`?id=eq.${id}`);
+      setDeliveryZones(prev=>prev.filter(z=>z.id!==id));
+      notify("Faixa removida!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao remover faixa. Veja o console (F12).","error");
+    }
+  }
+  async function updateZone(id,field,value){
+    const numVal=parseFloat(value);
+    setDeliveryZones(prev=>prev.map(z=>z.id===id?{...z,[field]:numVal}:z));
+    try{
+      await db("delivery_zones","PATCH",{[field]:numVal},`?id=eq.${id}`);
+    }catch(e){
+      console.error(e);
+      notify("Erro ao atualizar faixa. Veja o console (F12).","error");
+    }
+  }
 
   async function toggleProduct(id,current){
     await db("products","PATCH",{active:!current},`?id=eq.${id}`);
@@ -846,7 +985,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   }
 
   const IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
-  const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
+  const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"delivery",icon:"🛵",label:"Entrega"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
@@ -998,6 +1137,59 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             </div>
           )}
 
+          {section==="delivery"&&(
+            <div style={{maxWidth:600}}>
+              <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
+                <h3 style={{fontWeight:800,marginBottom:16}}>📍 Localização da loja</h3>
+                <p style={{fontSize:12,color:"#9B8B7A",marginBottom:12}}>Usada como ponto de partida para calcular a distância até o cliente.</p>
+                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço da loja</label>
+                <div style={{display:"flex",gap:8,marginBottom:10}}>
+                  <input value={store.store_address||""} onChange={e=>setStore(p=>({...p,store_address:e.target.value}))} placeholder="Rua, número, bairro, cidade" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
+                  <button onClick={locateStore} disabled={geocoding} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:geocoding?"default":"pointer",whiteSpace:"nowrap",opacity:geocoding?0.7:1}}>{geocoding?"Buscando...":"📍 Localizar"}</button>
+                </div>
+                {store.store_lat!=null&&store.store_lng!=null?(
+                  <p style={{fontSize:12,color:"#2ECC71",fontWeight:700}}>✓ Localização definida (lat {Number(store.store_lat).toFixed(5)}, lng {Number(store.store_lng).toFixed(5)})</p>
+                ):(
+                  <p style={{fontSize:12,color:"#9B8B7A"}}>Localização ainda não definida — clique em "Localizar" após digitar o endereço.</p>
+                )}
+                <div style={{marginTop:16}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Raio máximo de entrega (km)</label>
+                  <input type="number" step="0.5" value={store.max_delivery_km??""} onChange={e=>setStore(p=>({...p,max_delivery_km:e.target.value}))} style={{...IS,maxWidth:160}} />
+                  <p style={{fontSize:11,color:"#9B8B7A",marginTop:4}}>Endereços além dessa distância ficam bloqueados no checkout.</p>
+                </div>
+                <button onClick={saveStore} disabled={saving} style={{marginTop:12,background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>{saving?"Salvando...":"💾 Salvar Alterações"}</button>
+              </div>
+
+              <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
+                <h3 style={{fontWeight:800,marginBottom:8}}>💰 Faixas de preço por distância</h3>
+                <p style={{fontSize:12,color:"#9B8B7A",marginBottom:16}}>Ex: de 0 a 3km cobra R$5, de 3 a 6km cobra R$8. As faixas não podem ter buracos entre elas.</p>
+                {deliveryZones.length===0&&<p style={{fontSize:13,color:"#9B8B7A",marginBottom:12}}>Nenhuma faixa cadastrada ainda — sem faixas, o app usa a taxa fixa configurada em "Minha Loja".</p>}
+                {[...deliveryZones].sort((a,b)=>a.min_km-b.min_km).map(z=>(
+                  <div key={z.id} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:"1px solid #F5F0EB"}}>
+                    <span style={{fontSize:12,color:"#9B8B7A"}}>de</span>
+                    <input type="number" step="0.1" defaultValue={z.min_km} onBlur={e=>updateZone(z.id,"min_km",e.target.value)} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                    <span style={{fontSize:12,color:"#9B8B7A"}}>a</span>
+                    <input type="number" step="0.1" defaultValue={z.max_km} onBlur={e=>updateZone(z.id,"max_km",e.target.value)} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                    <span style={{fontSize:12,color:"#9B8B7A"}}>km →</span>
+                    <span style={{fontSize:12,color:"#9B8B7A"}}>R$</span>
+                    <input type="number" step="0.01" defaultValue={z.fee} onBlur={e=>updateZone(z.id,"fee",e.target.value)} style={{width:80,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                    <button onClick={()=>deleteZone(z.id)} style={{marginLeft:"auto",background:"#FEE2E2",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",color:"#991B1B",fontWeight:700}}>✕</button>
+                  </div>
+                ))}
+                <div style={{display:"flex",alignItems:"center",gap:8,marginTop:16,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,color:"#9B8B7A"}}>de</span>
+                  <input type="number" step="0.1" value={newZone.min_km} onChange={e=>setNewZone(p=>({...p,min_km:e.target.value}))} placeholder="0" style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                  <span style={{fontSize:12,color:"#9B8B7A"}}>a</span>
+                  <input type="number" step="0.1" value={newZone.max_km} onChange={e=>setNewZone(p=>({...p,max_km:e.target.value}))} placeholder="3" style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                  <span style={{fontSize:12,color:"#9B8B7A"}}>km →</span>
+                  <span style={{fontSize:12,color:"#9B8B7A"}}>R$</span>
+                  <input type="number" step="0.01" value={newZone.fee} onChange={e=>setNewZone(p=>({...p,fee:e.target.value}))} placeholder="5.00" style={{width:80,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
+                  <button onClick={addZone} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:700,fontSize:13}}>+ Adicionar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {section==="store"&&(
             <div style={{maxWidth:600}}>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
@@ -1009,7 +1201,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   </div>
                 ))}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-                  <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Taxa de Entrega (R$)</label><input type="number" step="0.01" value={store.delivery_fee} onChange={e=>setStore(p=>({...p,delivery_fee:e.target.value}))} style={IS} /></div>
+                  <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Taxa de Entrega fixa (R$)</label><input type="number" step="0.01" value={store.delivery_fee} onChange={e=>setStore(p=>({...p,delivery_fee:e.target.value}))} style={IS} /><p style={{fontSize:10,color:"#9B8B7A",marginTop:-8,marginBottom:12}}>Usada apenas se não houver faixas por distância na aba "Entrega".</p></div>
                   <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Pedido Mínimo (R$)</label><input type="number" step="0.01" value={store.min_order} onChange={e=>setStore(p=>({...p,min_order:e.target.value}))} style={IS} /></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -1119,6 +1311,7 @@ export default function App() {
   const [products,setProducts]=useState([]);
   const [store,setStore]=useState(DEFAULT_STORE);
   const [categories,setCategories]=useState(DEFAULT_CATEGORIES);
+  const [deliveryZones,setDeliveryZones]=useState([]);
   const [loading,setLoading]=useState(true);
   const [adminLoggedIn,setAdminLoggedIn]=useState(false);
   const [customerUser,setCustomerUser]=useState(null);
@@ -1161,12 +1354,12 @@ export default function App() {
 
     async function load(){
       try{
-        const [sd,pd,cd]=await Promise.all([
-          db("store","GET",null,"?id=eq.1"),
-          db("products","GET",null,"?order=category.asc,position.asc,id.asc"),
-          db("categories","GET",null,"?order=sort_order.asc"),
-        ]);
+        const sd = await db("store","GET",null,"?id=eq.1");
         if(sd?.[0])setStore(sd[0]);
+      }catch(e){console.error("Erro ao carregar loja:",e);}
+
+      try{
+        const pd = await db("products","GET",null,"?order=category.asc,position.asc,id.asc");
         if(pd?.length>0){
           setProducts(pd);
         }else{
@@ -1182,6 +1375,10 @@ export default function App() {
           const fresh=await db("products","GET",null,"?order=category.asc,position.asc,id.asc");
           setProducts(fresh||[]);
         }
+      }catch(e){console.error("Erro ao carregar produtos:",e);}
+
+      try{
+        const cd = await db("categories","GET",null,"?order=sort_order.asc");
         if(cd?.length>0){
           setCategories(cd.map(c=>({id:c.id,name:c.name,order:c.sort_order})));
         }else{
@@ -1189,7 +1386,13 @@ export default function App() {
           const freshCats=await db("categories","GET",null,"?order=sort_order.asc");
           setCategories((freshCats||[]).map(c=>({id:c.id,name:c.name,order:c.sort_order})));
         }
-      }catch(e){console.error(e);}
+      }catch(e){console.error("Erro ao carregar categorias:",e);}
+
+      try{
+        const dz = await db("delivery_zones","GET",null,"?order=min_km.asc");
+        setDeliveryZones(dz||[]);
+      }catch(e){console.error("Erro ao carregar zonas de entrega:",e);}
+
       setLoading(false);
     }
     load();
@@ -1199,10 +1402,10 @@ export default function App() {
 
   if(isAdmin){
     if(!adminLoggedIn)return <AdminLogin onLogin={()=>setAdminLoggedIn(true)} />;
-    return <AdminArea products={products} setProducts={setProducts} store={store} setStore={setStore} categories={categories} setCategories={setCategories} />;
+    return <AdminArea products={products} setProducts={setProducts} store={store} setStore={setStore} categories={categories} setCategories={setCategories} deliveryZones={deliveryZones} setDeliveryZones={setDeliveryZones} />;
   }
 
   if(showAuth) return <CustomerAuth onLogin={(user)=>{setCustomerUser(user);setShowAuth(false);}} />;
 
-  return <CustomerArea products={products} store={store} categories={categories} user={customerUser} onLogout={()=>{setCustomerUser(null);setShowAuth(true);}} />;
+  return <CustomerArea products={products} store={store} categories={categories} deliveryZones={deliveryZones} user={customerUser} onLogout={()=>{setCustomerUser(null);setShowAuth(true);}} />;
 }
