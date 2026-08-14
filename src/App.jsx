@@ -478,7 +478,7 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
 
       <div style={{maxWidth:900,margin:"0 auto",padding:"20px 16px"}}>
         {sortedCats.filter(cat=>activeCategory==="Todos"||activeCategory===cat.name).map(cat=>{
-          const cp=filtered.filter(p=>p.category===cat.name);
+          const cp=filtered.filter(p=>p.category===cat.name).sort((a,b)=>(a.position||0)-(b.position||0));
           if(cp.length===0)return null;
           return (
             <div key={cat.id} style={{marginBottom:32}}>
@@ -658,30 +658,78 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   async function saveNewProduct(){
     if(!newP.name||!newP.price)return notify("Preencha nome e preço!","error");
     setSaving(true);
-    const cat = newP.category||(categories.sort((a,b)=>a.order-b.order)[0]?.name||"Geral");
-    const result=await db("products","POST",{...newP,price:parseFloat(newP.price),active:true,image:newP.image||"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",category:cat});
-    setProducts(prev=>[...prev,result[0]]);
-    setShowAdd(false);
-    setNewP({name:"",price:"",category:"",description:"",image:"",tag:"",complements:"[]"});
+    try{
+      const cat = newP.category||([...categories].sort((a,b)=>a.order-b.order)[0]?.name||"Geral");
+      const sameCog = products.filter(p=>p.category===cat);
+      const nextPos = sameCog.length>0?Math.max(...sameCog.map(p=>p.position||0))+1:1;
+      const result=await db("products","POST",{...newP,price:parseFloat(newP.price),active:true,position:nextPos,image:newP.image||"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",category:cat});
+      if(!result||!result[0])throw new Error("Resposta vazia do servidor");
+      setProducts(prev=>[...prev,result[0]]);
+      setShowAdd(false);
+      setNewP({name:"",price:"",category:"",description:"",image:"",tag:"",complements:"[]"});
+      notify("Produto adicionado!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao salvar produto. Veja o console (F12).","error");
+    }
     setSaving(false);
-    notify("Produto adicionado!");
   }
   async function saveEditProduct(){
     if(!editingProduct.name||!editingProduct.price)return notify("Preencha nome e preço!","error");
     setSaving(true);
-    const {id,created_at,...data}=editingProduct;
-    await db("products","PATCH",{...data,price:parseFloat(data.price)},`?id=eq.${id}`);
-    setProducts(prev=>prev.map(p=>p.id===id?{...editingProduct,price:parseFloat(editingProduct.price)}:p));
-    setEditingProduct(null);
+    try{
+      const {id,created_at,...data}=editingProduct;
+      await db("products","PATCH",{...data,price:parseFloat(data.price)},`?id=eq.${id}`);
+      setProducts(prev=>prev.map(p=>p.id===id?{...editingProduct,price:parseFloat(editingProduct.price)}:p));
+      setEditingProduct(null);
+      notify("Produto salvo!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao salvar produto. Veja o console (F12).","error");
+    }
     setSaving(false);
-    notify("Produto salvo!");
+  }
+  async function moveProductUp(id){
+    const cat=products.find(p=>p.id===id)?.category;
+    const s=[...products].filter(p=>p.category===cat).sort((a,b)=>(a.position||0)-(b.position||0));
+    const i=s.findIndex(p=>p.id===id);
+    if(i<=0)return;
+    const a=s[i],b=s[i-1];
+    const posA=a.position||0,posB=b.position||0;
+    setProducts(prev=>prev.map(p=>p.id===a.id?{...p,position:posB}:p.id===b.id?{...p,position:posA}:p));
+    try{
+      await Promise.all([
+        db("products","PATCH",{position:posB},`?id=eq.${a.id}`),
+        db("products","PATCH",{position:posA},`?id=eq.${b.id}`),
+      ]);
+    }catch(e){console.error(e);notify("Erro ao reordenar produto.","error");}
+  }
+  async function moveProductDown(id){
+    const cat=products.find(p=>p.id===id)?.category;
+    const s=[...products].filter(p=>p.category===cat).sort((a,b)=>(a.position||0)-(b.position||0));
+    const i=s.findIndex(p=>p.id===id);
+    if(i>=s.length-1)return;
+    const a=s[i],b=s[i+1];
+    const posA=a.position||0,posB=b.position||0;
+    setProducts(prev=>prev.map(p=>p.id===a.id?{...p,position:posB}:p.id===b.id?{...p,position:posA}:p));
+    try{
+      await Promise.all([
+        db("products","PATCH",{position:posB},`?id=eq.${a.id}`),
+        db("products","PATCH",{position:posA},`?id=eq.${b.id}`),
+      ]);
+    }catch(e){console.error(e);notify("Erro ao reordenar produto.","error");}
   }
   async function saveStore(){
     setSaving(true);
-    const {id,...data}=store;
-    await db("store","PATCH",data,"?id=eq.1");
+    try{
+      const {id,...data}=store;
+      await db("store","PATCH",data,"?id=eq.1");
+      notify("Loja salva!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao salvar loja. Veja o console (F12).","error");
+    }
     setSaving(false);
-    notify("Loja salva!");
   }
   async function toggleStore(){
     const v=!store.is_open;
@@ -690,25 +738,62 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     notify(v?"Loja aberta!":"Loja fechada!");
   }
 
-  function addCategory(){
+  async function addCategory(){
     if(!newCatName.trim())return;
-    const newCat={id:Date.now(),name:newCatName.trim(),order:categories.length+1};
-    setCategories(prev=>[...prev,newCat]);
-    setNewCatName("");
-    notify("Categoria adicionada!");
+    try{
+      const result=await db("categories","POST",{name:newCatName.trim(),sort_order:categories.length+1});
+      if(!result||!result[0])throw new Error("Resposta vazia do servidor");
+      setCategories(prev=>[...prev,{id:result[0].id,name:result[0].name,order:result[0].sort_order}]);
+      setNewCatName("");
+      notify("Categoria adicionada!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao salvar categoria. Veja o console (F12).","error");
+    }
   }
-  function deleteCategory(id){setCategories(prev=>prev.filter(c=>c.id!==id));notify("Categoria removida!");}
-  function moveUp(id){
+  async function deleteCategory(id){
+    try{
+      await db("categories","DELETE",null,`?id=eq.${id}`);
+      setCategories(prev=>prev.filter(c=>c.id!==id));
+      notify("Categoria removida!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao remover categoria. Veja o console (F12).","error");
+    }
+  }
+  async function renameCategory(id,name){
+    try{
+      await db("categories","PATCH",{name},`?id=eq.${id}`);
+    }catch(e){
+      console.error(e);
+      notify("Erro ao renomear categoria. Veja o console (F12).","error");
+    }
+  }
+  async function moveUp(id){
     const s=[...categories].sort((a,b)=>a.order-b.order);
     const i=s.findIndex(c=>c.id===id);
     if(i<=0)return;
-    setCategories(s.map((c,j)=>j===i?{...c,order:s[i-1].order}:j===i-1?{...c,order:s[i].order}:c));
+    const a=s[i],b=s[i-1];
+    setCategories(prev=>prev.map(c=>c.id===a.id?{...c,order:b.order}:c.id===b.id?{...c,order:a.order}:c));
+    try{
+      await Promise.all([
+        db("categories","PATCH",{sort_order:b.order},`?id=eq.${a.id}`),
+        db("categories","PATCH",{sort_order:a.order},`?id=eq.${b.id}`),
+      ]);
+    }catch(e){console.error(e);notify("Erro ao reordenar. Veja o console (F12).","error");}
   }
-  function moveDown(id){
+  async function moveDown(id){
     const s=[...categories].sort((a,b)=>a.order-b.order);
     const i=s.findIndex(c=>c.id===id);
     if(i>=s.length-1)return;
-    setCategories(s.map((c,j)=>j===i?{...c,order:s[i+1].order}:j===i+1?{...c,order:s[i].order}:c));
+    const a=s[i],b=s[i+1];
+    setCategories(prev=>prev.map(c=>c.id===a.id?{...c,order:b.order}:c.id===b.id?{...c,order:a.order}:c));
+    try{
+      await Promise.all([
+        db("categories","PATCH",{sort_order:b.order},`?id=eq.${a.id}`),
+        db("categories","PATCH",{sort_order:a.order},`?id=eq.${b.id}`),
+      ]);
+    }catch(e){console.error(e);notify("Erro ao reordenar. Veja o console (F12).","error");}
   }
 
   const IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
@@ -760,27 +845,66 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   </div>
                 </div>
               )}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:14}}>
-                {products.map(p=>(
-                  <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",opacity:p.active?1:0.55}}>
-                    <div style={{position:"relative",height:150}}>
-                      <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
-                      {p.tag&&<div style={{position:"absolute",top:8,left:8}}><Badge tag={p.tag} /></div>}
-                      <div style={{position:"absolute",top:8,right:8,background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
-                    </div>
-                    <div style={{padding:14}}>
-                      <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
-                      <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
-                      <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={()=>setEditingProduct({...p,complements:p.complements||"[]"})} style={{flex:1,background:"#EFF6FF",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:"#1D4ED8"}}>✏️ Editar</button>
-                        <button onClick={()=>toggleProduct(p.id,p.active)} style={{flex:1,background:p.active?"#FEE2E2":"#D1FAE5",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:p.active?"#991B1B":"#065F46"}}>{p.active?"Ocultar":"Ativar"}</button>
-                        <button onClick={()=>deleteProduct(p.id)} style={{background:"#F5F0EB",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer"}}>🗑️</button>
-                      </div>
+              {[...categories].sort((a,b)=>a.order-b.order).map(cat=>{
+                const catProducts=[...products].filter(p=>p.category===cat.name).sort((a,b)=>(a.position||0)-(b.position||0));
+                if(catProducts.length===0)return null;
+                return (
+                  <div key={cat.id} style={{marginBottom:28}}>
+                    <h3 style={{fontWeight:800,fontSize:16,color:"#8B1A1A",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h3>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:14}}>
+                      {catProducts.map((p,idx)=>(
+                        <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",opacity:p.active?1:0.55}}>
+                          <div style={{position:"relative",height:150}}>
+                            <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                            {p.tag&&<div style={{position:"absolute",top:8,left:8}}><Badge tag={p.tag} /></div>}
+                            <div style={{position:"absolute",top:8,right:8,background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                          </div>
+                          <div style={{padding:14}}>
+                            <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
+                            <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
+                            <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                            <div style={{display:"flex",gap:8,marginBottom:8}}>
+                              <button onClick={()=>moveProductUp(p.id)} disabled={idx===0} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===0?"default":"pointer",opacity:idx===0?0.4:1}}>↑ Subir</button>
+                              <button onClick={()=>moveProductDown(p.id)} disabled={idx===catProducts.length-1} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===catProducts.length-1?"default":"pointer",opacity:idx===catProducts.length-1?0.4:1}}>↓ Descer</button>
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={()=>setEditingProduct({...p,complements:p.complements||"[]"})} style={{flex:1,background:"#EFF6FF",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:"#1D4ED8"}}>✏️ Editar</button>
+                              <button onClick={()=>toggleProduct(p.id,p.active)} style={{flex:1,background:p.active?"#FEE2E2":"#D1FAE5",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:p.active?"#991B1B":"#065F46"}}>{p.active?"Ocultar":"Ativar"}</button>
+                              <button onClick={()=>deleteProduct(p.id)} style={{background:"#F5F0EB",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer"}}>🗑️</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
+              {products.filter(p=>!categories.some(c=>c.name===p.category)).length>0&&(
+                <div style={{marginBottom:28}}>
+                  <h3 style={{fontWeight:800,fontSize:16,color:"#9B8B7A",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>Sem categoria</h3>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:14}}>
+                    {products.filter(p=>!categories.some(c=>c.name===p.category)).map(p=>(
+                      <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",opacity:p.active?1:0.55}}>
+                        <div style={{position:"relative",height:150}}>
+                          <img src={p.image} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                          {p.tag&&<div style={{position:"absolute",top:8,left:8}}><Badge tag={p.tag} /></div>}
+                          <div style={{position:"absolute",top:8,right:8,background:p.active?"#2ECC71":"#EF4444",color:"#fff",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.active?"Ativo":"Oculto"}</div>
+                        </div>
+                        <div style={{padding:14}}>
+                          <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
+                          <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
+                          <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>setEditingProduct({...p,complements:p.complements||"[]"})} style={{flex:1,background:"#EFF6FF",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:"#1D4ED8"}}>✏️ Editar</button>
+                            <button onClick={()=>toggleProduct(p.id,p.active)} style={{flex:1,background:p.active?"#FEE2E2":"#D1FAE5",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer",color:p.active?"#991B1B":"#065F46"}}>{p.active?"Ocultar":"Ativar"}</button>
+                            <button onClick={()=>deleteProduct(p.id)} style={{background:"#F5F0EB",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer"}}>🗑️</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -799,7 +923,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 {[...categories].sort((a,b)=>a.order-b.order).map(cat=>(
                   <div key={cat.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid #F5F0EB"}}>
                     {editCat===cat.id?(
-                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #8B1A1A",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>setEditCat(null)} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
+                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #8B1A1A",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>{setEditCat(null);renameCategory(cat.id,cat.name);}} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
                     ):(
                       <span style={{flex:1,fontWeight:600,fontSize:15}}>{cat.name}</span>
                     )}
@@ -931,25 +1055,33 @@ export default function App() {
 
     async function load(){
       try{
-        const [sd,pd]=await Promise.all([
+        const [sd,pd,cd]=await Promise.all([
           db("store","GET",null,"?id=eq.1"),
-          db("products","GET",null,"?order=id.asc"),
+          db("products","GET",null,"?order=category.asc,position.asc,id.asc"),
+          db("categories","GET",null,"?order=sort_order.asc"),
         ]);
         if(sd?.[0])setStore(sd[0]);
         if(pd?.length>0){
           setProducts(pd);
         }else{
           const INITIAL=[
-            {name:"Billy Clássico",category:"🍔 Hambúrgueres",price:32.9,description:"Blend de frango artesanal, queijo cheddar, alface, tomate, cebola e molho especial Billy.",image:"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",tag:"bestseller",active:true,complements:JSON.stringify([{id:1,title:"Adicionar Molhos",options:[{name:"Molho Barbecue",price:2},{name:"Molho Ranch",price:2},{name:"Molho Chipotle",price:2}],max:2}])},
-            {name:"Billy Bacon Crocante",category:"🍔 Hambúrgueres",price:39.9,description:"Blend especial, bacon crocante, queijo coalho, cebola caramelizada e maionese defumada.",image:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80",tag:"new",active:true,complements:JSON.stringify([])},
-            {name:"Combo Billy Família",category:"🍗 Combos",price:89.9,description:"2 Billy Clássico + 1 Billy Bacon + 2 Batatas Grandes + 4 Refrigerantes 350ml.",image:"https://images.unsplash.com/photo-1561758033-48d52648ae8b?w=400&q=80",tag:"promo",active:true,complements:JSON.stringify([])},
-            {name:"Batata Frita Rústica",category:"🍟 Acompanhamentos",price:18.9,description:"Batatas rústicas temperadas com ervas e flor de sal.",image:"https://images.unsplash.com/photo-1529990098630-4022df7bb7cc?w=400&q=80",tag:null,active:true,complements:JSON.stringify([{id:1,title:"Escolha o Molho",options:[{name:"Ketchup",price:0},{name:"Cheddar",price:3}],max:1}])},
-            {name:"Coca-Cola 350ml",category:"🥤 Bebidas",price:7.9,description:"Coca-Cola gelada.",image:"https://images.unsplash.com/photo-1629203851122-3726555cf519?w=400&q=80",tag:null,active:true,complements:JSON.stringify([])},
-            {name:"Brownie com Sorvete",category:"🍰 Sobremesas",price:19.9,description:"Brownie quentinho com sorvete de creme e calda de chocolate.",image:"https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&q=80",tag:"new",active:true,complements:JSON.stringify([])},
+            {name:"Billy Clássico",category:"🍔 Hambúrgueres",price:32.9,description:"Blend de frango artesanal, queijo cheddar, alface, tomate, cebola e molho especial Billy.",image:"https://images.unsplash.com/photo-1550317138-10000687a72b?w=400&q=80",tag:"bestseller",active:true,position:1,complements:JSON.stringify([{id:1,title:"Adicionar Molhos",options:[{name:"Molho Barbecue",price:2},{name:"Molho Ranch",price:2},{name:"Molho Chipotle",price:2}],max:2}])},
+            {name:"Billy Bacon Crocante",category:"🍔 Hambúrgueres",price:39.9,description:"Blend especial, bacon crocante, queijo coalho, cebola caramelizada e maionese defumada.",image:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80",tag:"new",active:true,position:2,complements:JSON.stringify([])},
+            {name:"Combo Billy Família",category:"🍗 Combos",price:89.9,description:"2 Billy Clássico + 1 Billy Bacon + 2 Batatas Grandes + 4 Refrigerantes 350ml.",image:"https://images.unsplash.com/photo-1561758033-48d52648ae8b?w=400&q=80",tag:"promo",active:true,position:1,complements:JSON.stringify([])},
+            {name:"Batata Frita Rústica",category:"🍟 Acompanhamentos",price:18.9,description:"Batatas rústicas temperadas com ervas e flor de sal.",image:"https://images.unsplash.com/photo-1529990098630-4022df7bb7cc?w=400&q=80",tag:null,active:true,position:1,complements:JSON.stringify([{id:1,title:"Escolha o Molho",options:[{name:"Ketchup",price:0},{name:"Cheddar",price:3}],max:1}])},
+            {name:"Coca-Cola 350ml",category:"🥤 Bebidas",price:7.9,description:"Coca-Cola gelada.",image:"https://images.unsplash.com/photo-1629203851122-3726555cf519?w=400&q=80",tag:null,active:true,position:1,complements:JSON.stringify([])},
+            {name:"Brownie com Sorvete",category:"🍰 Sobremesas",price:19.9,description:"Brownie quentinho com sorvete de creme e calda de chocolate.",image:"https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&q=80",tag:"new",active:true,position:1,complements:JSON.stringify([])},
           ];
           for(const p of INITIAL)await db("products","POST",p);
-          const fresh=await db("products","GET",null,"?order=id.asc");
+          const fresh=await db("products","GET",null,"?order=category.asc,position.asc,id.asc");
           setProducts(fresh||[]);
+        }
+        if(cd?.length>0){
+          setCategories(cd.map(c=>({id:c.id,name:c.name,order:c.sort_order})));
+        }else{
+          for(const c of DEFAULT_CATEGORIES)await db("categories","POST",{name:c.name,sort_order:c.order});
+          const freshCats=await db("categories","GET",null,"?order=sort_order.asc");
+          setCategories((freshCats||[]).map(c=>({id:c.id,name:c.name,order:c.sort_order})));
         }
       }catch(e){console.error(e);}
       setLoading(false);
