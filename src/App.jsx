@@ -571,6 +571,66 @@ function CustomerArea({ products, store, categories, user, onLogout }) {
 }
 
 // ─── ADMIN AREA ───────────────────────────────────────────────────────────────
+function ComplementEditor({value,onChange}){
+  const groups=parseC(value);
+  const upd=(arr)=>onChange(JSON.stringify(arr));
+  return(
+    <div>
+      {groups.map(g=>(
+        <div key={g.id} style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:12}}>
+          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
+            <input value={g.title} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,title:e.target.value}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"8px 12px",outline:"none",fontSize:14,fontWeight:700}} placeholder="Nome do grupo" />
+            <input type="number" value={g.max} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,max:parseInt(e.target.value)||1}:x))} style={{width:60,border:"2px solid #E5DDD5",borderRadius:8,padding:8,outline:"none",fontSize:14,textAlign:"center"}} min={1} title="Máximo" />
+            <button onClick={()=>upd(groups.filter(x=>x.id!==g.id))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"#991B1B",fontWeight:700}}>✕</button>
+          </div>
+          {g.options.map((opt,oi)=>(
+            <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
+              <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13}} placeholder="Nome" />
+              <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
+              <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
+            </div>
+          ))}
+          <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
+        </div>
+      ))}
+      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
+    </div>
+  );
+}
+
+const P_FORM_IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
+
+function PForm({data,setData,onSave,onCancel,title,categories,saving}){
+  const catList = [...categories].sort((a,b)=>a.order-b.order);
+  return(
+    <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 4px 24px rgba(0,0,0,0.1)"}}>
+      <h3 style={{fontWeight:800,marginBottom:16}}>{title}</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Nome *</label><input value={data.name} onChange={e=>setData(p=>({...p,name:e.target.value}))} style={P_FORM_IS} /></div>
+        <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Preço *</label><input value={data.price} onChange={e=>setData(p=>({...p,price:e.target.value}))} style={P_FORM_IS} /></div>
+      </div>
+      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Categoria</label>
+      <select value={data.category||catList[0]?.name||""} onChange={e=>setData(p=>({...p,category:e.target.value}))} style={P_FORM_IS}>
+        {catList.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+      </select>
+      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Tag</label>
+      <select value={data.tag||""} onChange={e=>setData(p=>({...p,tag:e.target.value||null}))} style={P_FORM_IS}>
+        <option value="">Sem tag</option><option value="bestseller">Mais Vendido</option><option value="new">Novo</option><option value="promo">Promoção</option>
+      </select>
+      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Descrição</label>
+      <textarea value={data.description} onChange={e=>setData(p=>({...p,description:e.target.value}))} style={{...P_FORM_IS,height:70,resize:"none"}} />
+      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Foto do produto</label>
+      <ImageUpload value={data.image} onChange={img=>setData(p=>({...p,image:img}))} style={{marginBottom:16}} />
+      <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
+      <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
+      <div style={{display:"flex",gap:10,marginTop:16}}>
+        <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
+        <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminArea({ products, setProducts, store, setStore, categories, setCategories }) {
   const [section,setSection]=useState("products");
   const [sidebarOpen,setSidebarOpen]=useState(true);
@@ -651,66 +711,8 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     setCategories(s.map((c,j)=>j===i?{...c,order:s[i+1].order}:j===i+1?{...c,order:s[i].order}:c));
   }
 
-  function ComplementEditor({value,onChange}){
-    const groups=parseC(value);
-    const upd=(arr)=>onChange(JSON.stringify(arr));
-    return(
-      <div>
-        {groups.map(g=>(
-          <div key={g.id} style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:12}}>
-            <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
-              <input value={g.title} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,title:e.target.value}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"8px 12px",outline:"none",fontSize:14,fontWeight:700}} placeholder="Nome do grupo" />
-              <input type="number" value={g.max} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,max:parseInt(e.target.value)||1}:x))} style={{width:60,border:"2px solid #E5DDD5",borderRadius:8,padding:8,outline:"none",fontSize:14,textAlign:"center"}} min={1} title="Máximo" />
-              <button onClick={()=>upd(groups.filter(x=>x.id!==g.id))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"#991B1B",fontWeight:700}}>✕</button>
-            </div>
-            {g.options.map((opt,oi)=>(
-              <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
-                <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13}} placeholder="Nome" />
-                <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
-                <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
-              </div>
-            ))}
-            <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
-          </div>
-        ))}
-        <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
-      </div>
-    );
-  }
-
   const IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
   const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
-
-  function PForm({data,setData,onSave,onCancel,title}){
-    const catList = [...categories].sort((a,b)=>a.order-b.order);
-    return(
-      <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 4px 24px rgba(0,0,0,0.1)"}}>
-        <h3 style={{fontWeight:800,marginBottom:16}}>{title}</h3>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Nome *</label><input value={data.name} onChange={e=>setData(p=>({...p,name:e.target.value}))} style={IS} /></div>
-          <div><label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Preço *</label><input value={data.price} onChange={e=>setData(p=>({...p,price:e.target.value}))} style={IS} /></div>
-        </div>
-        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Categoria</label>
-        <select value={data.category||catList[0]?.name||""} onChange={e=>setData(p=>({...p,category:e.target.value}))} style={IS}>
-          {catList.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
-        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Tag</label>
-        <select value={data.tag||""} onChange={e=>setData(p=>({...p,tag:e.target.value||null}))} style={IS}>
-          <option value="">Sem tag</option><option value="bestseller">Mais Vendido</option><option value="new">Novo</option><option value="promo">Promoção</option>
-        </select>
-        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:4}}>Descrição</label>
-        <textarea value={data.description} onChange={e=>setData(p=>({...p,description:e.target.value}))} style={{...IS,height:70,resize:"none"}} />
-        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Foto do produto</label>
-        <ImageUpload value={data.image} onChange={img=>setData(p=>({...p,image:img}))} style={{marginBottom:16}} />
-        <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
-        <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
-        <div style={{display:"flex",gap:10,marginTop:16}}>
-          <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
-          <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
-        </div>
-      </div>
-    );
-  }
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
@@ -750,11 +752,11 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <p style={{color:"#9B8B7A",fontSize:14}}>{products.length} produtos</p>
                 <button onClick={()=>setShowAdd(true)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
               </div>
-              {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" />}
+              {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" categories={categories} saving={saving} />}
               {editingProduct&&(
                 <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}} onClick={()=>setEditingProduct(null)}>
                   <div style={{background:"#fff",borderRadius:20,padding:28,width:"100%",maxWidth:560,maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-                    <PForm data={editingProduct} setData={setEditingProduct} onSave={saveEditProduct} onCancel={()=>setEditingProduct(null)} title="Editar Produto" />
+                    <PForm data={editingProduct} setData={setEditingProduct} onSave={saveEditProduct} onCancel={()=>setEditingProduct(null)} title="Editar Produto" categories={categories} saving={saving} />
                   </div>
                 </div>
               )}
