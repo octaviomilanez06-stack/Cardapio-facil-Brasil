@@ -872,8 +872,8 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
       }).addTo(mapInstance.current);
       layersRef.current.push(circle);
     }
-    const boundsCircle=L.circle([lat,lng],{radius:biggestKm*1000});
-    mapInstance.current.fitBounds(boundsCircle.getBounds(),{padding:[20,20]});
+    const bounds=L.latLng(lat,lng).toBounds(biggestKm*1000*2);
+    mapInstance.current.fitBounds(bounds,{padding:[20,20]});
   },[leafletReady,lat,lng,maxKm,JSON.stringify(zones)]);
 
   useEffect(()=>{
