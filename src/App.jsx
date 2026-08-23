@@ -458,27 +458,11 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
 
   if(showHistory&&currentUser) return <OrderHistory user={currentUser} onBack={()=>setShowHistory(false)} />;
 
-  // Loja fechada — tela bonita
-  if(!open) return (
-    <div style={{minHeight:"100vh",background:"#1A0A0A",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",padding:24,textAlign:"center"}}>
-      <style>{globalStyles}</style>
-      <div style={{width:100,height:100,background:"#fff",borderRadius:store.logo_shape==="circle"?"50%":20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?0:48,overflow:"hidden",marginBottom:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
-        {(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?<img src={store.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}} />:store.logo}
-      </div>
-      <h1 className="st" style={{color:store.title_color||"#8B1A1A",fontSize:36,marginBottom:8}}>{store.name}</h1>
-      <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginBottom:24,fontStyle:"italic"}}>{store.slogan}</p>
-      <div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 32px",marginBottom:16}}>
-        <p style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:600,marginBottom:4}}>Estamos fechados no momento</p>
-        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Abrimos às {store.open_time} • Fechamos às {store.close_time}</p>
-        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginTop:4}}>{(() => {
-          const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
-          if(openDays.length===7)return "Todos os dias";
-          return WEEKDAYS.filter(d=>openDays.includes(d.val)).map(d=>d.label).join(", ");
-        })()}</p>
-      </div>
-      <p style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Volte em breve! 🥰</p>
-    </div>
-  );
+  const closedHoursText = (() => {
+    const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
+    const days = openDays.length===7 ? "todos os dias" : WEEKDAYS.filter(d=>openDays.includes(d.val)).map(d=>d.label).join(", ");
+    return `Abrimos às ${store.open_time} • Fechamos às ${store.close_time} (${days})`;
+  })();
 
   if(step==="success") return (
     <div style={{minHeight:"100vh",background:"#F5F0EB",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
@@ -572,7 +556,13 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"#8B1A1A"}}>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
-        <button onClick={sendWhatsApp} disabled={orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok"} style={{width:"100%",background:(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
+        {!open&&(
+          <div style={{background:"#F2E9E4",border:"1px solid #E5DDD5",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+            <p style={{color:"#8B5E3C",fontSize:13,fontWeight:700,marginBottom:2}}>🕐 Restaurante fechado no momento</p>
+            <p style={{color:"#9B8B7A",fontSize:12}}>{closedHoursText}</p>
+          </div>
+        )}
+        <button onClick={sendWhatsApp} disabled={!open||(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")} style={{width:"100%",background:!open?"#D8D2CA":(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"#B7DFC5":"#25D366",color:!open?"#8A8378":"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:!open||(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"default":"pointer"}}>{!open?"🔒 Restaurante fechado":"📱 Enviar pedido pelo WhatsApp"}</button>
       </div>
     </div>
   );
@@ -612,7 +602,11 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🕐 {store.delivery_time}</span>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>📦 Mín. R$ {Number(store.min_order).toFixed(2)}</span>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🛵 {hasZones?`A partir de R$ ${Math.min(...deliveryZones.map(z=>Number(z.fee))).toFixed(2)}`:`R$ ${Number(store.delivery_fee).toFixed(2)}`}</span>
-            <span style={{background:"#2ECC71",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Aberto • Fecha {store.close_time}</span>
+            {open?(
+              <span style={{background:"#2ECC71",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Aberto • Fecha {store.close_time}</span>
+            ):(
+              <span style={{background:"#6B6B6B",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Fechado no momento</span>
+            )}
           </div>
         </div>
       </div>
@@ -665,6 +659,11 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             </div>
           );
         })}
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"20px 16px 90px",opacity:0.55}}>
+        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:20,height:20,borderRadius:6,objectFit:"cover"}} />
+        <span style={{fontSize:11,color:"#1A1A1A"}}>Cardápio via <strong>{PLATFORM_NAME}</strong></span>
       </div>
 
       {cartCount>0&&(
@@ -1131,27 +1130,27 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
       <style>{globalStyles}</style>
       {notif&&<div style={{position:"fixed",top:20,right:20,zIndex:9999,background:notif.type==="success"?"#2ECC71":"#EF4444",color:"#fff",padding:"12px 20px",borderRadius:12,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)"}}>{notif.msg}</div>}
-      <div style={{width:sidebarOpen?220:60,background:"#1A0A0A",display:"flex",flexDirection:"column",transition:"width 0.3s",overflow:"hidden",flexShrink:0}}>
-        <div style={{padding:"18px 14px",borderBottom:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:34,height:34,background:"#8B1A1A",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🍗</div>
-          {sidebarOpen&&<span className="st" style={{color:"#fff",fontSize:16,whiteSpace:"nowrap"}}>Admin</span>}
-          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#fff",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
+      <div style={{width:sidebarOpen?260:72,background:"#150808",display:"flex",flexDirection:"column",transition:"width 0.25s",overflow:"hidden",flexShrink:0,borderRight:"1px solid rgba(255,255,255,0.06)"}}>
+        <div style={{padding:sidebarOpen?"22px 20px":"22px 14px",borderBottom:"1px solid rgba(255,255,255,0.08)",display:"flex",alignItems:"center",gap:12}}>
+          <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:36,height:36,borderRadius:10,objectFit:"cover",flexShrink:0}} />
+          {sidebarOpen&&<span className="st" style={{color:"#fff",fontSize:15,whiteSpace:"nowrap",lineHeight:1.1}}>{store.name||"Painel"}</span>}
+          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
         </div>
-        <nav style={{flex:1,padding:"10px 6px"}}>
+        <nav style={{flex:1,padding:"18px 12px"}}>
           {MENU.map(item=>(
-            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:section===item.id?"#8B1A1A":"transparent",color:section===item.id?"#fff":"rgba(255,255,255,0.6)",fontWeight:section===item.id?700:400,marginBottom:3,textAlign:"left"}}>
-              <span style={{fontSize:18,flexShrink:0}}>{item.icon}</span>
-              {sidebarOpen&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>{item.label}</span>}
+            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"13px 14px",borderRadius:12,border:"none",cursor:"pointer",background:section===item.id?"#8B1A1A":"transparent",color:section===item.id?"#fff":"rgba(255,255,255,0.62)",fontWeight:section===item.id?700:500,marginBottom:4,textAlign:"left",transition:"background 0.15s"}}>
+              <span style={{fontSize:19,flexShrink:0}}>{item.icon}</span>
+              {sidebarOpen&&<span style={{fontSize:14,whiteSpace:"nowrap"}}>{item.label}</span>}
             </button>
           ))}
         </nav>
-        <div style={{padding:"12px 6px",borderTop:"1px solid rgba(255,255,255,0.1)"}}>
-          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:store.is_open?"rgba(46,204,113,0.2)":"rgba(239,68,68,0.2)",color:store.is_open?"#2ECC71":"#EF4444",fontWeight:700,marginBottom:4}}>
+        <div style={{padding:"14px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:store.is_open?"rgba(46,204,113,0.16)":"rgba(239,68,68,0.16)",color:store.is_open?"#2ECC71":"#EF4444",fontWeight:700,marginBottom:6}}>
             <span style={{fontSize:18,flexShrink:0}}>{store.is_open?"🟢":"🔴"}</span>
             {sidebarOpen&&<span style={{fontSize:13}}>{store.is_open?"Loja Aberta":"Loja Fechada"}</span>}
           </button>
           {onLogout&&(
-            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,0.5)",fontWeight:600}}>
+            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,0.45)",fontWeight:600}}>
               <span style={{fontSize:18,flexShrink:0}}>🚪</span>
               {sidebarOpen&&<span style={{fontSize:13}}>Sair</span>}
             </button>
@@ -1159,11 +1158,11 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
         </div>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
-        <div style={{background:"#fff",padding:"16px 24px",borderBottom:"1px solid #E5DDD5",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-          <h2 style={{fontWeight:800,fontSize:18}}>{MENU.find(m=>m.id===section)?.icon} {MENU.find(m=>m.id===section)?.label}</h2>
-          <div style={{background:store.is_open?"#2ECC71":"#EF4444",color:"#fff",padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
+        <div style={{background:"#fff",padding:"22px 40px",borderBottom:"1px solid #E5DDD5",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+          <h2 style={{fontWeight:800,fontSize:21}}>{MENU.find(m=>m.id===section)?.icon} {MENU.find(m=>m.id===section)?.label}</h2>
+          <div style={{background:store.is_open?"#2ECC71":"#EF4444",color:"#fff",padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
         </div>
-        <div style={{padding:24}}>
+        <div style={{padding:"32px 40px",maxWidth:1400,margin:"0 auto"}}>
 
           {section==="products"&&(
             <div>
@@ -1511,52 +1510,85 @@ function OwnerAuth({ onAuthenticated, initialMode }) {
     setLoading(false);
   }
 
+  const authStyles = `
+    .cfb-auth-wrap { min-height:100vh; display:flex; }
+    .cfb-auth-left { flex:0 0 44%; position:relative; background:linear-gradient(160deg,#1A0A0A 0%,#0D0D0D 70%); overflow:hidden; display:flex; flex-direction:column; justify-content:center; padding:56px; }
+    .cfb-auth-curve { position:absolute; width:130%; height:70%; left:-10%; bottom:-30%; background:#F5A623; border-radius:50%; opacity:0.94; }
+    .cfb-auth-right { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:40px 24px; }
+    .cfb-auth-form { width:100%; max-width:380px; }
+    @media (max-width: 860px) {
+      .cfb-auth-wrap { flex-direction:column; }
+      .cfb-auth-left { flex:0 0 auto; min-height:240px; padding:40px 28px; }
+      .cfb-auth-curve { display:none; }
+      .cfb-auth-right { padding:32px 20px 56px; }
+    }
+  `;
+
+  const leftPanel = (
+    <div className="cfb-auth-left">
+      <div className="cfb-auth-curve" />
+      <div style={{position:"relative",zIndex:1}}>
+        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:88,height:88,borderRadius:20,objectFit:"cover",marginBottom:24,boxShadow:"0 12px 32px rgba(0,0,0,0.4)"}} />
+        <h1 className="st" style={{color:"#fff",fontSize:30,lineHeight:1.15,marginBottom:14,letterSpacing:0.5}}>CARDÁPIO<br/><span style={{color:"#F5A623"}}>FÁCIL BRASIL</span></h1>
+        <p style={{color:"rgba(255,255,255,0.55)",fontSize:15,maxWidth:340,lineHeight:1.6}}>Automatize os pedidos do seu restaurante e receba direto no WhatsApp.</p>
+      </div>
+    </div>
+  );
+
   if(mode==="landing"){
     return (
-      <div style={{minHeight:"100vh",background:"#0D0D0D",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
-        <style>{globalStyles}</style>
-        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{maxWidth:320,width:"100%",marginBottom:8}} />
-        <h1 className="st" style={{color:"#fff",fontSize:20,marginTop:4,marginBottom:8,letterSpacing:1}}>CARDÁPIO <span style={{color:"#F5A623"}}>FÁCIL BRASIL</span></h1>
-        <p style={{color:"rgba(255,255,255,0.6)",fontSize:15,maxWidth:420,marginBottom:36}}>Crie o cardápio digital do seu restaurante e receba pedidos direto no WhatsApp — grátis pra começar.</p>
-        <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
-          <button onClick={()=>setMode("signup")} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer"}}>Criar meu cardápio grátis</button>
-          <button onClick={()=>setMode("login")} style={{background:"transparent",color:"#fff",border:"2px solid rgba(255,255,255,0.25)",borderRadius:14,padding:14,fontWeight:700,fontSize:15,cursor:"pointer"}}>Já tenho conta — Entrar</button>
+      <div className="cfb-auth-wrap">
+        <style>{globalStyles}{authStyles}</style>
+        {leftPanel}
+        <div className="cfb-auth-right">
+          <div className="cfb-auth-form" style={{textAlign:"center"}}>
+            <h2 className="st" style={{fontSize:24,color:"#1A1A1A",marginBottom:8}}>Bem-vindo</h2>
+            <p style={{color:"#9B8B7A",fontSize:14,marginBottom:32,lineHeight:1.6}}>Crie o cardápio digital do seu restaurante grátis, ou entre na sua conta.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <button onClick={()=>setMode("signup")} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:16,fontWeight:800,fontSize:15,cursor:"pointer"}}>Criar meu cardápio grátis</button>
+              <button onClick={()=>setMode("login")} style={{background:"transparent",color:"#1A1A1A",border:"2px solid #E5DDD5",borderRadius:12,padding:14,fontWeight:700,fontSize:14,cursor:"pointer"}}>Já tenho conta — Entrar</button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{minHeight:"100vh",background:"#0D0D0D",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-      <style>{globalStyles}</style>
-      <div style={{background:"#fff",borderRadius:20,padding:36,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-        <div style={{textAlign:"center",marginBottom:8}}>
-          <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{maxWidth:180,width:"100%"}} />
-        </div>
-        <h2 className="st" style={{fontSize:20,color:"#1A1A1A",textAlign:"center",marginBottom:4}}>{mode==="login"?"Entrar":"Criar sua conta"}</h2>
-        <p style={{color:"#9B8B7A",fontSize:13,textAlign:"center",marginBottom:24}}>{mode==="login"?"Acesse o painel do seu restaurante":"Comece a vender pelo seu cardápio digital"}</p>
+    <div className="cfb-auth-wrap">
+      <style>{globalStyles}{authStyles}</style>
+      {leftPanel}
+      <div className="cfb-auth-right">
+        <div className="cfb-auth-form">
+          <p style={{color:"#F5A623",fontSize:12,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>{mode==="login"?"Acesse sua conta":"Criar conta"}</p>
+          <h2 style={{fontSize:24,fontWeight:800,color:"#1A1A1A",marginBottom:6}}>{mode==="login"?"Entrar no painel":"Vamos começar"}</h2>
+          <p style={{color:"#9B8B7A",fontSize:13,marginBottom:28}}>{mode==="login"?"Acesse o painel do seu restaurante":"Comece a vender pelo seu cardápio digital"}</p>
 
-        {mode==="signup"&&(
-          <div style={{marginBottom:14,textAlign:"left"}}>
-            <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Nome do seu restaurante</label>
-            <input value={restaurantName} onChange={e=>setRestaurantName(e.target.value)} placeholder="Ex: Cantina da Maria" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          {mode==="signup"&&(
+            <div style={{marginBottom:16,textAlign:"left"}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B",display:"block",marginBottom:6}}>Nome do seu restaurante</label>
+              <input value={restaurantName} onChange={e=>setRestaurantName(e.target.value)} placeholder="Ex: Cantina da Maria" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+            </div>
+          )}
+          <div style={{marginBottom:16,textAlign:"left"}}>
+            <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B",display:"block",marginBottom:6}}>E-mail</label>
+            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="seuemail@exemplo.com" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
           </div>
-        )}
-        <div style={{marginBottom:14,textAlign:"left"}}>
-          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Email</label>
-          <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="seuemail@exemplo.com" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          <div style={{marginBottom:8,textAlign:"left"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B"}}>Senha</label>
+            </div>
+            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Mínimo 6 caracteres" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleSignup())} />
+          </div>
+          {error&&<p style={{color:"#B91C1C",fontSize:13,margin:"14px 0 0",background:"#FEE2E2",padding:"10px 12px",borderRadius:8}}>{error}</p>}
+          <button onClick={mode==="login"?handleLogin:handleSignup} disabled={loading} style={{width:"100%",background:"#1A1A1A",color:"#fff",border:"none",borderRadius:12,padding:15,fontWeight:800,fontSize:15,cursor:loading?"default":"pointer",opacity:loading?0.7:1,marginTop:22,marginBottom:14}}>
+            {loading?"Aguarde...":(mode==="login"?"Entrar":"Criar conta")}
+          </button>
+          <button onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,cursor:"pointer",padding:6}}>
+            {mode==="login"?"Ainda não tem conta? Criar cardápio":"Já tem conta? Entrar"}
+          </button>
+          <button onClick={()=>{setMode("landing");setError("");}} style={{display:"block",margin:"8px auto 0",background:"transparent",border:"none",color:"#C9BEB1",fontSize:12,cursor:"pointer"}}>← Voltar</button>
         </div>
-        <div style={{marginBottom:20,textAlign:"left"}}>
-          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Senha</label>
-          <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Mínimo 6 caracteres" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleSignup())} />
-        </div>
-        {error&&<p style={{color:"#EF4444",fontSize:13,marginBottom:14,background:"#FEE2E2",padding:"8px 12px",borderRadius:8}}>{error}</p>}
-        <button onClick={mode==="login"?handleLogin:handleSignup} disabled={loading} style={{width:"100%",background:"#1A1A1A",color:"#fff",border:"none",borderRadius:12,padding:14,fontWeight:800,fontSize:15,cursor:loading?"default":"pointer",opacity:loading?0.7:1,marginBottom:12}}>
-          {loading?"Aguarde...":(mode==="login"?"Entrar →":"Criar Conta →")}
-        </button>
-        <button onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,cursor:"pointer",padding:8}}>
-          {mode==="login"?"Ainda não tem conta? Criar cardápio":"Já tem conta? Entrar"}
-        </button>
       </div>
     </div>
   );
