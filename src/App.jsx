@@ -626,7 +626,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
         </div>
       </div>
 
-      <div style={{maxWidth:1300,margin:"0 auto",padding:"20px 16px"}}>
+      <div style={{maxWidth:1600,margin:"0 auto",padding:"20px 24px"}}>
         {sortedCats.filter(cat=>activeCategory==="Todos"||activeCategory===cat.name).map(cat=>{
           const cp=filtered.filter(p=>p.category===cat.name).sort((a,b)=>(a.position||0)-(b.position||0));
           if(cp.length===0)return null;
