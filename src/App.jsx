@@ -626,7 +626,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
         </div>
       </div>
 
-      <div style={{maxWidth:900,margin:"0 auto",padding:"20px 16px"}}>
+      <div style={{maxWidth:1300,margin:"0 auto",padding:"20px 16px"}}>
         {sortedCats.filter(cat=>activeCategory==="Todos"||activeCategory===cat.name).map(cat=>{
           const cp=filtered.filter(p=>p.category===cat.name).sort((a,b)=>(a.position||0)-(b.position||0));
           if(cp.length===0)return null;
@@ -759,7 +759,7 @@ function ComplementEditor({value,onChange}){
           <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
         </div>
       ))}
-      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
+      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
     </div>
   );
 }
@@ -790,7 +790,7 @@ function PForm({data,setData,onSave,onCancel,title,categories,saving}){
       <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
       <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
       <div style={{display:"flex",gap:10,marginTop:16}}>
-        <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
+        <button onClick={onSave} disabled={saving} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
         <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
       </div>
     </div>
@@ -845,7 +845,7 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
     const marker=L.marker([lat,lng],{icon:storeIcon}).addTo(mapInstance.current);
     layersRef.current.push(marker);
 
-    const colors=["#8B1A1A","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
+    const colors=["#D97706","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
     let biggestKm = maxKm ? Number(maxKm) : 5;
     if(zones&&zones.length>0){
       const sortedDesc=[...zones].sort((a,b)=>Number(b.max_km)-Number(a.max_km));
@@ -864,8 +864,8 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
     }else if(maxKm){
       const circle=L.circle([lat,lng],{
         radius:Number(maxKm)*1000,
-        color:"#8B1A1A",
-        fillColor:"#8B1A1A",
+        color:"#D97706",
+        fillColor:"#D97706",
         fillOpacity:0.1,
         weight:2,
       }).addTo(mapInstance.current);
@@ -1130,37 +1130,50 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
       <style>{globalStyles}</style>
       {notif&&<div style={{position:"fixed",top:20,right:20,zIndex:9999,background:notif.type==="success"?"#2ECC71":"#EF4444",color:"#fff",padding:"12px 20px",borderRadius:12,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)"}}>{notif.msg}</div>}
-      <div style={{width:sidebarOpen?260:72,background:"#150808",display:"flex",flexDirection:"column",transition:"width 0.25s",overflow:"hidden",flexShrink:0,borderRight:"1px solid rgba(255,255,255,0.06)"}}>
-        <div style={{padding:sidebarOpen?"22px 20px":"22px 14px",borderBottom:"1px solid rgba(255,255,255,0.08)",display:"flex",alignItems:"center",gap:12}}>
+      <div style={{width:sidebarOpen?260:72,background:"#fff",display:"flex",flexDirection:"column",transition:"width 0.25s",overflow:"hidden",flexShrink:0,borderRight:"1px solid #EEE9E2"}}>
+        <div style={{padding:sidebarOpen?"22px 20px":"22px 14px",borderBottom:"1px solid #EEE9E2",display:"flex",alignItems:"center",gap:12}}>
           <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:36,height:36,borderRadius:10,objectFit:"cover",flexShrink:0}} />
-          {sidebarOpen&&<span className="st" style={{color:"#fff",fontSize:15,whiteSpace:"nowrap",lineHeight:1.1}}>{store.name||"Painel"}</span>}
-          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
+          {sidebarOpen&&<span className="st" style={{color:"#1A1A1A",fontSize:15,whiteSpace:"nowrap",lineHeight:1.1}}>{store.name||"Painel"}</span>}
+          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#B0A99C",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
         </div>
         <nav style={{flex:1,padding:"18px 12px"}}>
           {MENU.map(item=>(
-            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"13px 14px",borderRadius:12,border:"none",cursor:"pointer",background:section===item.id?"#8B1A1A":"transparent",color:section===item.id?"#fff":"rgba(255,255,255,0.62)",fontWeight:section===item.id?700:500,marginBottom:4,textAlign:"left",transition:"background 0.15s"}}>
+            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"13px 14px",borderRadius:12,border:"none",cursor:"pointer",background:section===item.id?"#FEF3E2":"transparent",color:section===item.id?"#D97706":"#7A7268",fontWeight:section===item.id?700:500,marginBottom:4,textAlign:"left",transition:"background 0.15s"}}>
               <span style={{fontSize:19,flexShrink:0}}>{item.icon}</span>
               {sidebarOpen&&<span style={{fontSize:14,whiteSpace:"nowrap"}}>{item.label}</span>}
             </button>
           ))}
         </nav>
-        <div style={{padding:"14px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:store.is_open?"rgba(46,204,113,0.16)":"rgba(239,68,68,0.16)",color:store.is_open?"#2ECC71":"#EF4444",fontWeight:700,marginBottom:6}}>
+        <div style={{padding:"14px 12px",borderTop:"1px solid #EEE9E2"}}>
+          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:store.is_open?"#E9F9EF":"#FEECEC",color:store.is_open?"#1E9E52":"#DC3B3B",fontWeight:700,marginBottom:6}}>
             <span style={{fontSize:18,flexShrink:0}}>{store.is_open?"🟢":"🔴"}</span>
             {sidebarOpen&&<span style={{fontSize:13}}>{store.is_open?"Loja Aberta":"Loja Fechada"}</span>}
           </button>
           {onLogout&&(
-            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,0.45)",fontWeight:600}}>
+            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:"transparent",color:"#A79E90",fontWeight:600}}>
               <span style={{fontSize:18,flexShrink:0}}>🚪</span>
               {sidebarOpen&&<span style={{fontSize:13}}>Sair</span>}
             </button>
           )}
         </div>
       </div>
-      <div style={{flex:1,overflow:"auto"}}>
-        <div style={{background:"#fff",padding:"22px 40px",borderBottom:"1px solid #E5DDD5",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-          <h2 style={{fontWeight:800,fontSize:21}}>{MENU.find(m=>m.id===section)?.icon} {MENU.find(m=>m.id===section)?.label}</h2>
-          <div style={{background:store.is_open?"#2ECC71":"#EF4444",color:"#fff",padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
+      <div style={{flex:1,overflow:"auto",background:"#F9F8F6"}}>
+        <div style={{background:"#fff",padding:"20px 40px",borderBottom:"1px solid #EEE9E2",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+          <div>
+            <h2 style={{fontWeight:800,fontSize:21,color:"#1A1A1A"}}>{MENU.find(m=>m.id===section)?.label}</h2>
+            <p style={{fontSize:13,color:"#9B8B7A",marginTop:2}}>{{products:"Gerencie todos os produtos do seu cardápio",categories:"Organize as categorias do seu cardápio",delivery:"Gerencie suas entregas, taxas e áreas de cobertura",store:"Configure os dados da sua loja",orders:"Veja como os pedidos chegam até você"}[section]}</p>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <div style={{background:store.is_open?"#E9F9EF":"#FEECEC",color:store.is_open?"#1E9E52":"#DC3B3B",padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
+            <div style={{position:"relative",width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:10,background:"#F5F3F0",cursor:"pointer"}}>🔔</div>
+            <div style={{display:"flex",alignItems:"center",gap:10,border:"1px solid #EEE9E2",borderRadius:12,padding:"6px 12px 6px 6px"}}>
+              <img src={PLATFORM_LOGO} alt="" style={{width:30,height:30,borderRadius:8,objectFit:"cover"}} />
+              <div style={{lineHeight:1.2}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#1A1A1A"}}>{store.name||"Painel"}</div>
+                <div style={{fontSize:11,color:"#9B8B7A"}}>Administrador</div>
+              </div>
+            </div>
+          </div>
         </div>
         <div style={{padding:"32px 40px",maxWidth:1400,margin:"0 auto"}}>
 
@@ -1168,7 +1181,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             <div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
                 <p style={{color:"#9B8B7A",fontSize:14}}>{products.length} produtos</p>
-                <button onClick={()=>setShowAdd(true)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
+                <button onClick={()=>setShowAdd(true)} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
               </div>
               {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" categories={categories} saving={saving} />}
               {editingProduct&&(
@@ -1183,7 +1196,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 if(catProducts.length===0)return null;
                 return (
                   <div key={cat.id} style={{marginBottom:28}}>
-                    <h3 style={{fontWeight:800,fontSize:16,color:"#8B1A1A",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h3>
+                    <h3 style={{fontWeight:800,fontSize:16,color:"#D97706",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h3>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:14}}>
                       {catProducts.map((p,idx)=>(
                         <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",opacity:p.active?1:0.55}}>
@@ -1198,7 +1211,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                           <div style={{padding:14}}>
                             <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
                             <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
-                            <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                            <p className="st" style={{fontSize:16,color:"#D97706",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
                             <div style={{display:"flex",gap:8,marginBottom:8}}>
                               <button onClick={()=>moveProductUp(p.id)} disabled={idx===0} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===0?"default":"pointer",opacity:idx===0?0.4:1}}>↑ Subir</button>
                               <button onClick={()=>moveProductDown(p.id)} disabled={idx===catProducts.length-1} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===catProducts.length-1?"default":"pointer",opacity:idx===catProducts.length-1?0.4:1}}>↓ Descer</button>
@@ -1235,7 +1248,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                         <div style={{padding:14}}>
                           <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
                           <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
-                          <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                          <p className="st" style={{fontSize:16,color:"#D97706",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
                           <div style={{display:"flex",gap:8,marginBottom:8}}>
                             <button onClick={()=>toggleSoldOut(p.id,p.sold_out)} style={{flex:1,background:p.sold_out?"#1A1A1A":"#F5F0EB",color:p.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>{p.sold_out?"Marcar disponível":"Marcar esgotado"}</button>
                           </div>
@@ -1258,8 +1271,8 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
               <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>Adicionar Categoria</h3>
                 <div style={{display:"flex",gap:10}}>
-                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
-                  <button onClick={addCategory} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Adicionar</button>
+                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} onFocus={e=>e.target.style.borderColor="#D97706"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+                  <button onClick={addCategory} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Adicionar</button>
                 </div>
                 <p style={{fontSize:12,color:"#9B8B7A",marginTop:8}}>Dica: use emojis no nome. Ex: 🍕 Pizzas, 🌮 Tacos</p>
               </div>
@@ -1268,7 +1281,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 {[...categories].sort((a,b)=>a.order-b.order).map(cat=>(
                   <div key={cat.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid #F5F0EB"}}>
                     {editCat===cat.id?(
-                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #8B1A1A",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>{setEditCat(null);renameCategory(cat.id,cat.name);}} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
+                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #D97706",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>{setEditCat(null);renameCategory(cat.id,cat.name);}} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
                     ):(
                       <span style={{flex:1,fontWeight:600,fontSize:15}}>{cat.name}</span>
                     )}
@@ -1290,7 +1303,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço da loja</label>
                 <div style={{display:"flex",gap:8,marginBottom:10}}>
                   <input value={store.store_address||""} onChange={e=>setStore(p=>({...p,store_address:e.target.value}))} placeholder="Rua, número, bairro, cidade" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
-                  <button onClick={locateStore} disabled={geocoding} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:geocoding?"default":"pointer",whiteSpace:"nowrap",opacity:geocoding?0.7:1}}>{geocoding?"Buscando...":"📍 Localizar"}</button>
+                  <button onClick={locateStore} disabled={geocoding} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:geocoding?"default":"pointer",whiteSpace:"nowrap",opacity:geocoding?0.7:1}}>{geocoding?"Buscando...":"📍 Localizar"}</button>
                 </div>
                 {store.store_lat!=null&&store.store_lng!=null?(
                   <p style={{fontSize:12,color:"#2ECC71",fontWeight:700}}>✓ Localização definida (lat {Number(store.store_lat).toFixed(5)}, lng {Number(store.store_lng).toFixed(5)})</p>
@@ -1302,7 +1315,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <input type="number" step="0.5" value={store.max_delivery_km??""} onChange={e=>setStore(p=>({...p,max_delivery_km:e.target.value}))} style={{...IS,maxWidth:160}} />
                   <p style={{fontSize:11,color:"#9B8B7A",marginTop:4}}>Endereços além dessa distância ficam bloqueados no checkout.</p>
                 </div>
-                <button onClick={saveStore} disabled={saving} style={{marginTop:12,background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>{saving?"Salvando...":"💾 Salvar Alterações"}</button>
+                <button onClick={saveStore} disabled={saving} style={{marginTop:12,background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>{saving?"Salvando...":"💾 Salvar Alterações"}</button>
               </div>
 
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
@@ -1335,7 +1348,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <span style={{fontSize:12,color:"#9B8B7A"}}>km →</span>
                   <span style={{fontSize:12,color:"#9B8B7A"}}>R$</span>
                   <input type="number" step="0.01" value={newZone.fee} onChange={e=>setNewZone(p=>({...p,fee:e.target.value}))} placeholder="5.00" style={{width:80,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
-                  <button onClick={addZone} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:700,fontSize:13}}>+ Adicionar</button>
+                  <button onClick={addZone} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:700,fontSize:13}}>+ Adicionar</button>
                 </div>
               </div>
             </div>
@@ -1379,7 +1392,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                           const current=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
                           const updated=current.includes(d.val)?current.filter(v=>v!==d.val):[...current,d.val];
                           setStore(p=>({...p,open_days:updated.sort().join(",")}));
-                        }} style={{padding:"10px 14px",borderRadius:10,border:`2px solid ${active?"#8B1A1A":"#E5DDD5"}`,background:active?"#8B1A1A":"#fff",color:active?"#fff":"#1A1A1A",fontWeight:700,cursor:"pointer",fontSize:13,minWidth:52}}>{d.label}</button>
+                        }} style={{padding:"10px 14px",borderRadius:10,border:`2px solid ${active?"#D97706":"#E5DDD5"}`,background:active?"#D97706":"#fff",color:active?"#fff":"#1A1A1A",fontWeight:700,cursor:"pointer",fontSize:13,minWidth:52}}>{d.label}</button>
                       );
                     })}
                   </div>
@@ -1400,7 +1413,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Formato da logo</label>
                   <div style={{display:"flex",gap:12}}>
                     {[["circle","⭕ Redonda"],["square","⬜ Quadrada"]].map(([v,l])=>(
-                      <button key={v} onClick={()=>setStore(p=>({...p,logo_shape:v}))} style={{flex:1,padding:10,borderRadius:12,border:`2px solid ${store.logo_shape===v?"#8B1A1A":"#E5DDD5"}`,background:store.logo_shape===v?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer"}}>{l}</button>
+                      <button key={v} onClick={()=>setStore(p=>({...p,logo_shape:v}))} style={{flex:1,padding:10,borderRadius:12,border:`2px solid ${store.logo_shape===v?"#D97706":"#E5DDD5"}`,background:store.logo_shape===v?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer"}}>{l}</button>
                     ))}
                   </div>
                 </div>
@@ -1419,7 +1432,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <ImageUpload value={store.logo?.startsWith("data:")?store.logo:null} onChange={img=>setStore(p=>({...p,logo:img}))} />
                 <p style={{fontSize:11,color:"#9B8B7A",marginTop:8}}>Ao enviar uma imagem, ela também aparece como o ícone da aba do navegador (favicon).</p>
               </div>
-              <button onClick={saveStore} disabled={saving} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:16}}>
+              <button onClick={saveStore} disabled={saving} style={{width:"100%",background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:16}}>
                 {saving?"Salvando...":"💾 Salvar Alterações"}
               </button>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
@@ -1435,7 +1448,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             <div style={{textAlign:"center",padding:60,color:"#9B8B7A"}}>
               <div style={{fontSize:48,marginBottom:12}}>📱</div>
               <p style={{fontWeight:700,fontSize:18,marginBottom:12}}>Pedidos via WhatsApp</p>
-              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
+              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#D97706"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
             </div>
           )}
 
