@@ -354,6 +354,9 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
   const [showHistory,setShowHistory]=useState(false);
   const [currentUser,setCurrentUser]=useState(user);
   const [deliveryCalc,setDeliveryCalc]=useState({status:"idle",distanceKm:null,fee:null,error:null});
+  const [couponMode,setCouponMode]=useState(null); // null | "input" | "applied"
+  const [couponInput,setCouponInput]=useState("");
+  const [couponState,setCouponState]=useState({status:"idle",coupon:null,error:null});
 
   const open = isStoreOpen(store);
   const sortedCats = [...categories].sort((a,b)=>a.order-b.order);
@@ -369,7 +372,43 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
   const cartCount = cart.reduce((s,i)=>s+i.qty,0);
   const hasZones = deliveryZones && deliveryZones.length>0;
   const deliveryFeeToUse = orderType!=="delivery" ? 0 : (hasZones ? (deliveryCalc.fee ?? 0) : Number(store.delivery_fee));
-  const total = cartTotal+deliveryFeeToUse;
+  const discountAmount = couponState.status==="applied" ? cartTotal*(Number(couponState.coupon.discount_percent)/100) : 0;
+  const total = cartTotal-discountAmount+deliveryFeeToUse;
+
+  async function applyCoupon(){
+    const code = couponInput.trim().toUpperCase();
+    if(!code){
+      setCouponState({status:"error",coupon:null,error:"Digite o código do cupom."});
+      return;
+    }
+    setCouponState({status:"loading",coupon:null,error:null});
+    try{
+      const result = await db("coupons","GET",null,`?restaurant_id=eq.${store.id}&code=eq.${encodeURIComponent(code)}`);
+      const coupon = result?.[0];
+      if(!coupon){
+        setCouponState({status:"error",coupon:null,error:"Cupom não encontrado."});
+        return;
+      }
+      if(!coupon.active){
+        setCouponState({status:"error",coupon:null,error:"Esse cupom foi desativado."});
+        return;
+      }
+      if(new Date(coupon.expires_at) < new Date()){
+        setCouponState({status:"error",coupon:null,error:"Esse cupom expirou."});
+        return;
+      }
+      setCouponState({status:"applied",coupon,error:null});
+      setCouponMode("applied");
+    }catch(e){
+      console.error(e);
+      setCouponState({status:"error",coupon:null,error:"Não foi possível verificar o cupom. Tente novamente."});
+    }
+  }
+  function removeCoupon(){
+    setCouponState({status:"idle",coupon:null,error:null});
+    setCouponInput("");
+    setCouponMode(null);
+  }
 
   async function calculateDelivery(){
     if(!info.address || info.address.trim().length<8){
@@ -428,10 +467,13 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
     if(!info.name||!info.phone)return alert("Preencha nome e telefone!");
     if(orderType==="delivery"&&!info.address)return alert("Preencha o endereço!");
     if(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")return alert("Calcule o frete antes de enviar o pedido (botão 'Calcular frete').");
+    if(couponMode===null)return alert("Escolha 'Tenho um cupom' ou 'Não tenho cupom' antes de finalizar.");
+    if(couponMode==="input"&&couponState.status!=="applied")return alert("Aplique o cupom ou clique em 'Cancelar' e escolha 'Não tenho cupom'.");
     const mapsLink = orderType==="delivery" ? `\n🗺️ *Ver no Maps:* https://maps.google.com/?q=${encodeURIComponent(info.address)}` : "";
     const distanceText = orderType==="delivery"&&hasZones&&deliveryCalc.distanceKm!=null ? ` (${deliveryCalc.distanceKm.toFixed(1)}km)` : "";
     const items = cart.map(i=>`• ${i.qty}x ${i.name}${i.extrasText?` (${i.extrasText})`:""} — R$ ${((i.price+i.extrasTotal)*i.qty).toFixed(2)}`).join("\n");
-    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${deliveryFeeToUse.toFixed(2)}${distanceText}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
+    const couponText = couponState.status==="applied" ? `\n🎟️ Cupom: ${couponState.coupon.code} (-${couponState.coupon.discount_percent}% • − R$ ${discountAmount.toFixed(2)})` : "";
+    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${couponText}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${deliveryFeeToUse.toFixed(2)}${distanceText}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
     window.open(`https://wa.me/${store.whatsapp_number}?text=${encodeURIComponent(msg)}`,"_blank");
 
     // Save order to user history
@@ -458,11 +500,27 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
 
   if(showHistory&&currentUser) return <OrderHistory user={currentUser} onBack={()=>setShowHistory(false)} />;
 
-  const closedHoursText = (() => {
-    const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
-    const days = openDays.length===7 ? "todos os dias" : WEEKDAYS.filter(d=>openDays.includes(d.val)).map(d=>d.label).join(", ");
-    return `Abrimos às ${store.open_time} • Fechamos às ${store.close_time} (${days})`;
-  })();
+  // Loja fechada — tela bonita
+  if(!open) return (
+    <div style={{minHeight:"100vh",background:"#1A0A0A",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",padding:24,textAlign:"center"}}>
+      <style>{globalStyles}</style>
+      <div style={{width:100,height:100,background:"#fff",borderRadius:store.logo_shape==="circle"?"50%":20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?0:48,overflow:"hidden",marginBottom:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+        {(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?<img src={store.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}} />:store.logo}
+      </div>
+      <h1 className="st" style={{color:store.title_color||"#8B1A1A",fontSize:36,marginBottom:8}}>{store.name}</h1>
+      <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginBottom:24,fontStyle:"italic"}}>{store.slogan}</p>
+      <div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 32px",marginBottom:16}}>
+        <p style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:600,marginBottom:4}}>Estamos fechados no momento</p>
+        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Abrimos às {store.open_time} • Fechamos às {store.close_time}</p>
+        <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginTop:4}}>{(() => {
+          const openDays=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
+          if(openDays.length===7)return "Todos os dias";
+          return WEEKDAYS.filter(d=>openDays.includes(d.val)).map(d=>d.label).join(", ");
+        })()}</p>
+      </div>
+      <p style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Volte em breve! 🥰</p>
+    </div>
+  );
 
   if(step==="success") return (
     <div style={{minHeight:"100vh",background:"#F5F0EB",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
@@ -527,6 +585,32 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           )}
         </div>
         <div style={{background:"#fff",borderRadius:16,padding:20,marginBottom:16}}>
+          <h3 style={{fontWeight:700,marginBottom:14}}>🎟️ Cupom de desconto</h3>
+          {couponState.status==="applied"?(
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#F0FDF4",border:"2px solid #BBF7D0",borderRadius:10,padding:"10px 14px"}}>
+              <div>
+                <p style={{fontWeight:800,fontSize:14,color:"#065F46",fontFamily:"monospace"}}>{couponState.coupon.code}</p>
+                <p style={{fontSize:12,color:"#065F46"}}>{couponState.coupon.discount_percent}% de desconto aplicado</p>
+              </div>
+              <button onClick={removeCoupon} style={{background:"#fff",border:"1px solid #BBF7D0",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#065F46"}}>Remover</button>
+            </div>
+          ):couponMode==="input"?(
+            <div>
+              <div style={{display:"flex",gap:8}}>
+                <input value={couponInput} onChange={e=>{setCouponInput(e.target.value.toUpperCase());setCouponState({status:"idle",coupon:null,error:null});}} placeholder="Digite o código" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,textTransform:"uppercase"}} onKeyDown={e=>e.key==="Enter"&&applyCoupon()} />
+                <button onClick={applyCoupon} disabled={couponState.status==="loading"} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>{couponState.status==="loading"?"Verificando...":"Aplicar"}</button>
+              </div>
+              {couponState.status==="error"&&<p style={{fontSize:12,color:"#EF4444",fontWeight:600,marginTop:8}}>⚠️ {couponState.error}</p>}
+              <button onClick={()=>{setCouponMode(null);setCouponInput("");setCouponState({status:"idle",coupon:null,error:null});}} style={{background:"transparent",border:"none",color:"#9B8B7A",fontSize:12,cursor:"pointer",marginTop:8,padding:0}}>Cancelar</button>
+            </div>
+          ):(
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <button onClick={()=>setCouponMode("input")} style={{padding:"10px 18px",borderRadius:10,border:"2px solid #8B1A1A",background:"#FFF5F5",fontWeight:700,cursor:"pointer",fontSize:13,color:"#8B1A1A"}}>Tenho um cupom</button>
+              <button onClick={()=>setCouponMode("none")} style={{padding:"10px 18px",borderRadius:10,border:`2px solid ${couponMode==="none"?"#8B1A1A":"#E5DDD5"}`,background:couponMode==="none"?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Não tenho cupom</button>
+            </div>
+          )}
+        </div>
+        <div style={{background:"#fff",borderRadius:16,padding:20,marginBottom:16}}>
           <h3 style={{fontWeight:700,marginBottom:14}}>Pagamento</h3>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             {[["pix","PIX"],["cartao","Cartão"],["dinheiro","Dinheiro"]].map(([val,label])=>(
@@ -552,17 +636,12 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             </div>
           ))}
           <div style={{borderTop:"1px solid #E5DDD5",marginTop:12,paddingTop:12}}>
+            {couponState.status==="applied"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#2ECC71",fontWeight:700}}><span>Desconto ({couponState.coupon.code})</span><span>− R$ {discountAmount.toFixed(2)}</span></div>}
             {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega</span><span>{hasZones&&deliveryCalc.status!=="ok"?"a calcular":`R$ ${deliveryFeeToUse.toFixed(2)}`}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"#8B1A1A"}}>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
-        {!open&&(
-          <div style={{background:"#F2E9E4",border:"1px solid #E5DDD5",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
-            <p style={{color:"#8B5E3C",fontSize:13,fontWeight:700,marginBottom:2}}>🕐 Restaurante fechado no momento</p>
-            <p style={{color:"#9B8B7A",fontSize:12}}>{closedHoursText}</p>
-          </div>
-        )}
-        <button onClick={sendWhatsApp} disabled={!open||(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")} style={{width:"100%",background:!open?"#D8D2CA":(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"#B7DFC5":"#25D366",color:!open?"#8A8378":"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:!open||(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")?"default":"pointer"}}>{!open?"🔒 Restaurante fechado":"📱 Enviar pedido pelo WhatsApp"}</button>
+        <button onClick={sendWhatsApp} disabled={(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied")} style={{width:"100%",background:((orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:((orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
       </div>
     </div>
   );
@@ -602,11 +681,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🕐 {store.delivery_time}</span>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>📦 Mín. R$ {Number(store.min_order).toFixed(2)}</span>
             <span style={{background:"rgba(255,255,255,0.15)",padding:"3px 10px",borderRadius:20}}>🛵 {hasZones?`A partir de R$ ${Math.min(...deliveryZones.map(z=>Number(z.fee))).toFixed(2)}`:`R$ ${Number(store.delivery_fee).toFixed(2)}`}</span>
-            {open?(
-              <span style={{background:"#2ECC71",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Aberto • Fecha {store.close_time}</span>
-            ):(
-              <span style={{background:"#6B6B6B",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Fechado no momento</span>
-            )}
+            <span style={{background:"#2ECC71",color:"#fff",padding:"3px 10px",borderRadius:20,fontWeight:700}}>● Aberto • Fecha {store.close_time}</span>
           </div>
         </div>
       </div>
@@ -626,7 +701,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
         </div>
       </div>
 
-      <div style={{maxWidth:1600,margin:"0 auto",padding:"20px 24px"}}>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"20px 16px"}}>
         {sortedCats.filter(cat=>activeCategory==="Todos"||activeCategory===cat.name).map(cat=>{
           const cp=filtered.filter(p=>p.category===cat.name).sort((a,b)=>(a.position||0)-(b.position||0));
           if(cp.length===0)return null;
@@ -659,11 +734,6 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             </div>
           );
         })}
-      </div>
-
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"20px 16px 90px",opacity:0.55}}>
-        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:20,height:20,borderRadius:6,objectFit:"cover"}} />
-        <span style={{fontSize:11,color:"#1A1A1A"}}>Cardápio via <strong>{PLATFORM_NAME}</strong></span>
       </div>
 
       {cartCount>0&&(
@@ -759,7 +829,7 @@ function ComplementEditor({value,onChange}){
           <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
         </div>
       ))}
-      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
+      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
     </div>
   );
 }
@@ -790,7 +860,7 @@ function PForm({data,setData,onSave,onCancel,title,categories,saving}){
       <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
       <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
       <div style={{display:"flex",gap:10,marginTop:16}}>
-        <button onClick={onSave} disabled={saving} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
+        <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
         <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
       </div>
     </div>
@@ -845,7 +915,7 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
     const marker=L.marker([lat,lng],{icon:storeIcon}).addTo(mapInstance.current);
     layersRef.current.push(marker);
 
-    const colors=["#D97706","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
+    const colors=["#8B1A1A","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
     let biggestKm = maxKm ? Number(maxKm) : 5;
     if(zones&&zones.length>0){
       const sortedDesc=[...zones].sort((a,b)=>Number(b.max_km)-Number(a.max_km));
@@ -864,15 +934,15 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
     }else if(maxKm){
       const circle=L.circle([lat,lng],{
         radius:Number(maxKm)*1000,
-        color:"#D97706",
-        fillColor:"#D97706",
+        color:"#8B1A1A",
+        fillColor:"#8B1A1A",
         fillOpacity:0.1,
         weight:2,
       }).addTo(mapInstance.current);
       layersRef.current.push(circle);
     }
-    const bounds=L.latLng(lat,lng).toBounds(biggestKm*1000*2);
-    mapInstance.current.fitBounds(bounds,{padding:[20,20]});
+    const boundsCircle=L.circle([lat,lng],{radius:biggestKm*1000});
+    mapInstance.current.fitBounds(boundsCircle.getBounds(),{padding:[20,20]});
   },[leafletReady,lat,lng,maxKm,JSON.stringify(zones)]);
 
   useEffect(()=>{
@@ -893,7 +963,7 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
   return <div ref={mapRef} style={{height:300,borderRadius:12,overflow:"hidden"}} />;
 }
 
-function AdminArea({ products, setProducts, store, setStore, categories, setCategories, deliveryZones, setDeliveryZones, accessToken, onLogout }) {
+function AdminArea({ products, setProducts, store, setStore, categories, setCategories, deliveryZones, setDeliveryZones, coupons, setCoupons, accessToken, onLogout }) {
   const adb = (table, method, body, filter) => db(table, method, body, filter, accessToken);
   const [section,setSection]=useState("products");
   const [sidebarOpen,setSidebarOpen]=useState(true);
@@ -958,6 +1028,52 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
     }catch(e){
       console.error(e);
       notify("Erro ao atualizar faixa. Veja o console (F12).","error");
+    }
+  }
+
+  const [newCoupon,setNewCoupon]=useState({code:"",discount_percent:"",expires_at:""});
+
+  async function addCoupon(){
+    const code=newCoupon.code.trim().toUpperCase();
+    const pct=parseFloat(newCoupon.discount_percent);
+    if(!code)return notify("Digite um código para o cupom.","error");
+    if(isNaN(pct)||pct<=0||pct>100)return notify("Digite uma porcentagem entre 1 e 100.","error");
+    if(!newCoupon.expires_at)return notify("Escolha a data de validade do cupom.","error");
+    try{
+      const result=await adb("coupons","POST",{
+        code, discount_percent:pct,
+        expires_at:new Date(newCoupon.expires_at).toISOString(),
+        active:true, restaurant_id:store.id,
+      });
+      if(!result||!result[0])throw new Error("Resposta vazia do servidor");
+      setCoupons(prev=>[...prev,result[0]]);
+      setNewCoupon({code:"",discount_percent:"",expires_at:""});
+      notify("Cupom criado!");
+    }catch(e){
+      console.error(e);
+      const msg=/duplicate|unique/i.test(e.message||"")?"Já existe um cupom com esse código.":"Erro ao criar cupom. Veja o console (F12).";
+      notify(msg,"error");
+    }
+  }
+  async function toggleCoupon(id,current){
+    try{
+      await adb("coupons","PATCH",{active:!current},`?id=eq.${id}`);
+      setCoupons(prev=>prev.map(c=>c.id===id?{...c,active:!current}:c));
+      notify(!current?"Cupom ativado!":"Cupom desativado!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao atualizar cupom. Veja o console (F12).","error");
+    }
+  }
+  async function deleteCoupon(id){
+    if(!confirm("Tem certeza?"))return;
+    try{
+      await adb("coupons","DELETE",null,`?id=eq.${id}`);
+      setCoupons(prev=>prev.filter(c=>c.id!==id));
+      notify("Cupom removido!");
+    }catch(e){
+      console.error(e);
+      notify("Erro ao remover cupom. Veja o console (F12).","error");
     }
   }
 
@@ -1124,64 +1240,51 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   }
 
   const IS={width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:12};
-  const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"delivery",icon:"🛵",label:"Entrega"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
+  const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"coupons",icon:"🎟️",label:"Cupons"},{id:"delivery",icon:"🛵",label:"Entrega"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
 
   return(
     <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
       <style>{globalStyles}</style>
       {notif&&<div style={{position:"fixed",top:20,right:20,zIndex:9999,background:notif.type==="success"?"#2ECC71":"#EF4444",color:"#fff",padding:"12px 20px",borderRadius:12,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)"}}>{notif.msg}</div>}
-      <div style={{width:sidebarOpen?260:72,background:"#fff",display:"flex",flexDirection:"column",transition:"width 0.25s",overflow:"hidden",flexShrink:0,borderRight:"1px solid #EEE9E2"}}>
-        <div style={{padding:sidebarOpen?"22px 20px":"22px 14px",borderBottom:"1px solid #EEE9E2",display:"flex",alignItems:"center",gap:12}}>
-          <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:36,height:36,borderRadius:10,objectFit:"cover",flexShrink:0}} />
-          {sidebarOpen&&<span className="st" style={{color:"#1A1A1A",fontSize:15,whiteSpace:"nowrap",lineHeight:1.1}}>{store.name||"Painel"}</span>}
-          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#B0A99C",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
+      <div style={{width:sidebarOpen?220:60,background:"#1A0A0A",display:"flex",flexDirection:"column",transition:"width 0.3s",overflow:"hidden",flexShrink:0}}>
+        <div style={{padding:"18px 14px",borderBottom:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,background:"#8B1A1A",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🍗</div>
+          {sidebarOpen&&<span className="st" style={{color:"#fff",fontSize:16,whiteSpace:"nowrap"}}>Admin</span>}
+          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#fff",cursor:"pointer",fontSize:16,flexShrink:0}}>{sidebarOpen?"◁":"▷"}</button>
         </div>
-        <nav style={{flex:1,padding:"18px 12px"}}>
+        <nav style={{flex:1,padding:"10px 6px"}}>
           {MENU.map(item=>(
-            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"13px 14px",borderRadius:12,border:"none",cursor:"pointer",background:section===item.id?"#FEF3E2":"transparent",color:section===item.id?"#D97706":"#7A7268",fontWeight:section===item.id?700:500,marginBottom:4,textAlign:"left",transition:"background 0.15s"}}>
-              <span style={{fontSize:19,flexShrink:0}}>{item.icon}</span>
-              {sidebarOpen&&<span style={{fontSize:14,whiteSpace:"nowrap"}}>{item.label}</span>}
+            <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:section===item.id?"#8B1A1A":"transparent",color:section===item.id?"#fff":"rgba(255,255,255,0.6)",fontWeight:section===item.id?700:400,marginBottom:3,textAlign:"left"}}>
+              <span style={{fontSize:18,flexShrink:0}}>{item.icon}</span>
+              {sidebarOpen&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>{item.label}</span>}
             </button>
           ))}
         </nav>
-        <div style={{padding:"14px 12px",borderTop:"1px solid #EEE9E2"}}>
-          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:store.is_open?"#E9F9EF":"#FEECEC",color:store.is_open?"#1E9E52":"#DC3B3B",fontWeight:700,marginBottom:6}}>
+        <div style={{padding:"12px 6px",borderTop:"1px solid rgba(255,255,255,0.1)"}}>
+          <button onClick={toggleStore} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:store.is_open?"rgba(46,204,113,0.2)":"rgba(239,68,68,0.2)",color:store.is_open?"#2ECC71":"#EF4444",fontWeight:700,marginBottom:4}}>
             <span style={{fontSize:18,flexShrink:0}}>{store.is_open?"🟢":"🔴"}</span>
             {sidebarOpen&&<span style={{fontSize:13}}>{store.is_open?"Loja Aberta":"Loja Fechada"}</span>}
           </button>
           {onLogout&&(
-            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",background:"transparent",color:"#A79E90",fontWeight:600}}>
+            <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:"rgba(255,255,255,0.5)",fontWeight:600}}>
               <span style={{fontSize:18,flexShrink:0}}>🚪</span>
               {sidebarOpen&&<span style={{fontSize:13}}>Sair</span>}
             </button>
           )}
         </div>
       </div>
-      <div style={{flex:1,overflow:"auto",background:"#F9F8F6"}}>
-        <div style={{background:"#fff",padding:"20px 40px",borderBottom:"1px solid #EEE9E2",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-          <div>
-            <h2 style={{fontWeight:800,fontSize:21,color:"#1A1A1A"}}>{MENU.find(m=>m.id===section)?.label}</h2>
-            <p style={{fontSize:13,color:"#9B8B7A",marginTop:2}}>{{products:"Gerencie todos os produtos do seu cardápio",categories:"Organize as categorias do seu cardápio",delivery:"Gerencie suas entregas, taxas e áreas de cobertura",store:"Configure os dados da sua loja",orders:"Veja como os pedidos chegam até você"}[section]}</p>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <div style={{background:store.is_open?"#E9F9EF":"#FEECEC",color:store.is_open?"#1E9E52":"#DC3B3B",padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
-            <div style={{position:"relative",width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:10,background:"#F5F3F0",cursor:"pointer"}}>🔔</div>
-            <div style={{display:"flex",alignItems:"center",gap:10,border:"1px solid #EEE9E2",borderRadius:12,padding:"6px 12px 6px 6px"}}>
-              <img src={PLATFORM_LOGO} alt="" style={{width:30,height:30,borderRadius:8,objectFit:"cover"}} />
-              <div style={{lineHeight:1.2}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#1A1A1A"}}>{store.name||"Painel"}</div>
-                <div style={{fontSize:11,color:"#9B8B7A"}}>Administrador</div>
-              </div>
-            </div>
-          </div>
+      <div style={{flex:1,overflow:"auto"}}>
+        <div style={{background:"#fff",padding:"16px 24px",borderBottom:"1px solid #E5DDD5",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+          <h2 style={{fontWeight:800,fontSize:18}}>{MENU.find(m=>m.id===section)?.icon} {MENU.find(m=>m.id===section)?.label}</h2>
+          <div style={{background:store.is_open?"#2ECC71":"#EF4444",color:"#fff",padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
         </div>
-        <div style={{padding:"32px 40px",maxWidth:1400,margin:"0 auto"}}>
+        <div style={{padding:24}}>
 
           {section==="products"&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
                 <p style={{color:"#9B8B7A",fontSize:14}}>{products.length} produtos</p>
-                <button onClick={()=>setShowAdd(true)} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
+                <button onClick={()=>setShowAdd(true)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>+ Novo Produto</button>
               </div>
               {showAdd&&<PForm data={newP} setData={setNewP} onSave={saveNewProduct} onCancel={()=>setShowAdd(false)} title="Novo Produto" categories={categories} saving={saving} />}
               {editingProduct&&(
@@ -1196,7 +1299,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 if(catProducts.length===0)return null;
                 return (
                   <div key={cat.id} style={{marginBottom:28}}>
-                    <h3 style={{fontWeight:800,fontSize:16,color:"#D97706",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h3>
+                    <h3 style={{fontWeight:800,fontSize:16,color:"#8B1A1A",marginBottom:12,paddingBottom:6,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h3>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:14}}>
                       {catProducts.map((p,idx)=>(
                         <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",opacity:p.active?1:0.55}}>
@@ -1211,7 +1314,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                           <div style={{padding:14}}>
                             <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
                             <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
-                            <p className="st" style={{fontSize:16,color:"#D97706",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                            <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
                             <div style={{display:"flex",gap:8,marginBottom:8}}>
                               <button onClick={()=>moveProductUp(p.id)} disabled={idx===0} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===0?"default":"pointer",opacity:idx===0?0.4:1}}>↑ Subir</button>
                               <button onClick={()=>moveProductDown(p.id)} disabled={idx===catProducts.length-1} style={{flex:1,background:"#F5F0EB",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:idx===catProducts.length-1?"default":"pointer",opacity:idx===catProducts.length-1?0.4:1}}>↓ Descer</button>
@@ -1248,7 +1351,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                         <div style={{padding:14}}>
                           <h4 style={{fontWeight:700,marginBottom:2,fontSize:14}}>{p.name}</h4>
                           <p style={{fontSize:12,color:"#9B8B7A",marginBottom:8}}>{p.category}</p>
-                          <p className="st" style={{fontSize:16,color:"#D97706",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
+                          <p className="st" style={{fontSize:16,color:"#8B1A1A",marginBottom:12}}>R$ {Number(p.price).toFixed(2)}</p>
                           <div style={{display:"flex",gap:8,marginBottom:8}}>
                             <button onClick={()=>toggleSoldOut(p.id,p.sold_out)} style={{flex:1,background:p.sold_out?"#1A1A1A":"#F5F0EB",color:p.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:7,fontSize:12,fontWeight:700,cursor:"pointer"}}>{p.sold_out?"Marcar disponível":"Marcar esgotado"}</button>
                           </div>
@@ -1271,8 +1374,8 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
               <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <h3 style={{fontWeight:800,marginBottom:16}}>Adicionar Categoria</h3>
                 <div style={{display:"flex",gap:10}}>
-                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} onFocus={e=>e.target.style.borderColor="#D97706"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
-                  <button onClick={addCategory} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Adicionar</button>
+                  <input value={newCatName} onChange={e=>setNewCatName(e.target.value)} placeholder="Ex: 🍕 Pizzas" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onKeyDown={e=>e.key==="Enter"&&addCategory()} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+                  <button onClick={addCategory} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Adicionar</button>
                 </div>
                 <p style={{fontSize:12,color:"#9B8B7A",marginTop:8}}>Dica: use emojis no nome. Ex: 🍕 Pizzas, 🌮 Tacos</p>
               </div>
@@ -1281,7 +1384,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 {[...categories].sort((a,b)=>a.order-b.order).map(cat=>(
                   <div key={cat.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid #F5F0EB"}}>
                     {editCat===cat.id?(
-                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #D97706",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>{setEditCat(null);renameCategory(cat.id,cat.name);}} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
+                      <input value={cat.name} onChange={e=>setCategories(prev=>prev.map(c=>c.id===cat.id?{...c,name:e.target.value}:c))} style={{flex:1,border:"2px solid #8B1A1A",borderRadius:8,padding:"6px 12px",outline:"none",fontSize:14}} onBlur={()=>{setEditCat(null);renameCategory(cat.id,cat.name);}} onKeyDown={e=>e.key==="Enter"&&setEditCat(null)} autoFocus />
                     ):(
                       <span style={{flex:1,fontWeight:600,fontSize:15}}>{cat.name}</span>
                     )}
@@ -1295,6 +1398,51 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             </div>
           )}
 
+          {section==="coupons"&&(
+            <div style={{maxWidth:600}}>
+              <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+                <h3 style={{fontWeight:800,marginBottom:8}}>🎟️ Criar cupom</h3>
+                <p style={{fontSize:12,color:"#9B8B7A",marginBottom:16}}>O desconto é aplicado sobre o subtotal dos itens (não sobre a taxa de entrega).</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Código do cupom</label>
+                    <input value={newCoupon.code} onChange={e=>setNewCoupon(p=>({...p,code:e.target.value.toUpperCase()}))} placeholder="Ex: BEMVINDO10" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,textTransform:"uppercase"}} />
+                  </div>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Desconto (%)</label>
+                    <input type="number" min="1" max="100" value={newCoupon.discount_percent} onChange={e=>setNewCoupon(p=>({...p,discount_percent:e.target.value}))} placeholder="10" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
+                  </div>
+                </div>
+                <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Válido até</label>
+                <input type="datetime-local" value={newCoupon.expires_at} onChange={e=>setNewCoupon(p=>({...p,expires_at:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:16}} />
+                <button onClick={addCoupon} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>+ Criar cupom</button>
+              </div>
+
+              <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+                <h3 style={{fontWeight:800,marginBottom:16}}>Cupons ({coupons.length})</h3>
+                {coupons.length===0&&<p style={{fontSize:13,color:"#9B8B7A"}}>Nenhum cupom criado ainda.</p>}
+                {[...coupons].sort((a,b)=>new Date(b.expires_at)-new Date(a.expires_at)).map(c=>{
+                  const expired = new Date(c.expires_at) < new Date();
+                  const statusLabel = expired?"Expirado":(c.active?"Ativo":"Desativado");
+                  const statusColor = expired?"#9B8B7A":(c.active?"#2ECC71":"#EF4444");
+                  return (
+                    <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:"1px solid #F5F0EB"}}>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontWeight:800,fontSize:15,fontFamily:"monospace"}}>{c.code}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:"#fff",background:statusColor,padding:"2px 8px",borderRadius:20}}>{statusLabel}</span>
+                        </div>
+                        <p style={{fontSize:12,color:"#9B8B7A",marginTop:4}}>{c.discount_percent}% de desconto • válido até {new Date(c.expires_at).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</p>
+                      </div>
+                      <button onClick={()=>toggleCoupon(c.id,c.active)} disabled={expired} style={{background:c.active?"#FEE2E2":"#D1FAE5",border:"none",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:expired?"default":"pointer",color:c.active?"#991B1B":"#065F46",opacity:expired?0.5:1}}>{c.active?"Desativar":"Ativar"}</button>
+                      <button onClick={()=>deleteCoupon(c.id)} style={{background:"#F5F0EB",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer"}}>🗑️</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {section==="delivery"&&(
             <div style={{maxWidth:600}}>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
@@ -1303,7 +1451,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço da loja</label>
                 <div style={{display:"flex",gap:8,marginBottom:10}}>
                   <input value={store.store_address||""} onChange={e=>setStore(p=>({...p,store_address:e.target.value}))} placeholder="Rua, número, bairro, cidade" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
-                  <button onClick={locateStore} disabled={geocoding} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:geocoding?"default":"pointer",whiteSpace:"nowrap",opacity:geocoding?0.7:1}}>{geocoding?"Buscando...":"📍 Localizar"}</button>
+                  <button onClick={locateStore} disabled={geocoding} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:geocoding?"default":"pointer",whiteSpace:"nowrap",opacity:geocoding?0.7:1}}>{geocoding?"Buscando...":"📍 Localizar"}</button>
                 </div>
                 {store.store_lat!=null&&store.store_lng!=null?(
                   <p style={{fontSize:12,color:"#2ECC71",fontWeight:700}}>✓ Localização definida (lat {Number(store.store_lat).toFixed(5)}, lng {Number(store.store_lng).toFixed(5)})</p>
@@ -1315,7 +1463,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <input type="number" step="0.5" value={store.max_delivery_km??""} onChange={e=>setStore(p=>({...p,max_delivery_km:e.target.value}))} style={{...IS,maxWidth:160}} />
                   <p style={{fontSize:11,color:"#9B8B7A",marginTop:4}}>Endereços além dessa distância ficam bloqueados no checkout.</p>
                 </div>
-                <button onClick={saveStore} disabled={saving} style={{marginTop:12,background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>{saving?"Salvando...":"💾 Salvar Alterações"}</button>
+                <button onClick={saveStore} disabled={saving} style={{marginTop:12,background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"12px 24px",fontWeight:800,fontSize:14,cursor:"pointer"}}>{saving?"Salvando...":"💾 Salvar Alterações"}</button>
               </div>
 
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
@@ -1348,7 +1496,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <span style={{fontSize:12,color:"#9B8B7A"}}>km →</span>
                   <span style={{fontSize:12,color:"#9B8B7A"}}>R$</span>
                   <input type="number" step="0.01" value={newZone.fee} onChange={e=>setNewZone(p=>({...p,fee:e.target.value}))} placeholder="5.00" style={{width:80,border:"2px solid #E5DDD5",borderRadius:8,padding:"6px 8px",outline:"none",fontSize:13,textAlign:"center"}} />
-                  <button onClick={addZone} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:700,fontSize:13}}>+ Adicionar</button>
+                  <button onClick={addZone} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:700,fontSize:13}}>+ Adicionar</button>
                 </div>
               </div>
             </div>
@@ -1392,7 +1540,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                           const current=(store.open_days||"0,1,2,3,4,5,6").split(",").map(Number).filter(n=>!isNaN(n));
                           const updated=current.includes(d.val)?current.filter(v=>v!==d.val):[...current,d.val];
                           setStore(p=>({...p,open_days:updated.sort().join(",")}));
-                        }} style={{padding:"10px 14px",borderRadius:10,border:`2px solid ${active?"#D97706":"#E5DDD5"}`,background:active?"#D97706":"#fff",color:active?"#fff":"#1A1A1A",fontWeight:700,cursor:"pointer",fontSize:13,minWidth:52}}>{d.label}</button>
+                        }} style={{padding:"10px 14px",borderRadius:10,border:`2px solid ${active?"#8B1A1A":"#E5DDD5"}`,background:active?"#8B1A1A":"#fff",color:active?"#fff":"#1A1A1A",fontWeight:700,cursor:"pointer",fontSize:13,minWidth:52}}>{d.label}</button>
                       );
                     })}
                   </div>
@@ -1413,7 +1561,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                   <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Formato da logo</label>
                   <div style={{display:"flex",gap:12}}>
                     {[["circle","⭕ Redonda"],["square","⬜ Quadrada"]].map(([v,l])=>(
-                      <button key={v} onClick={()=>setStore(p=>({...p,logo_shape:v}))} style={{flex:1,padding:10,borderRadius:12,border:`2px solid ${store.logo_shape===v?"#D97706":"#E5DDD5"}`,background:store.logo_shape===v?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer"}}>{l}</button>
+                      <button key={v} onClick={()=>setStore(p=>({...p,logo_shape:v}))} style={{flex:1,padding:10,borderRadius:12,border:`2px solid ${store.logo_shape===v?"#8B1A1A":"#E5DDD5"}`,background:store.logo_shape===v?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer"}}>{l}</button>
                     ))}
                   </div>
                 </div>
@@ -1432,7 +1580,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 <ImageUpload value={store.logo?.startsWith("data:")?store.logo:null} onChange={img=>setStore(p=>({...p,logo:img}))} />
                 <p style={{fontSize:11,color:"#9B8B7A",marginTop:8}}>Ao enviar uma imagem, ela também aparece como o ícone da aba do navegador (favicon).</p>
               </div>
-              <button onClick={saveStore} disabled={saving} style={{width:"100%",background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:16}}>
+              <button onClick={saveStore} disabled={saving} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:16}}>
                 {saving?"Salvando...":"💾 Salvar Alterações"}
               </button>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
@@ -1448,7 +1596,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             <div style={{textAlign:"center",padding:60,color:"#9B8B7A"}}>
               <div style={{fontSize:48,marginBottom:12}}>📱</div>
               <p style={{fontWeight:700,fontSize:18,marginBottom:12}}>Pedidos via WhatsApp</p>
-              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#D97706"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
+              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
             </div>
           )}
 
@@ -1523,85 +1671,52 @@ function OwnerAuth({ onAuthenticated, initialMode }) {
     setLoading(false);
   }
 
-  const authStyles = `
-    .cfb-auth-wrap { min-height:100vh; display:flex; }
-    .cfb-auth-left { flex:0 0 44%; position:relative; background:linear-gradient(160deg,#1A0A0A 0%,#0D0D0D 70%); overflow:hidden; display:flex; flex-direction:column; justify-content:center; padding:56px; }
-    .cfb-auth-curve { position:absolute; width:130%; height:70%; left:-10%; bottom:-30%; background:#F5A623; border-radius:50%; opacity:0.94; }
-    .cfb-auth-right { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:40px 24px; }
-    .cfb-auth-form { width:100%; max-width:380px; }
-    @media (max-width: 860px) {
-      .cfb-auth-wrap { flex-direction:column; }
-      .cfb-auth-left { flex:0 0 auto; min-height:240px; padding:40px 28px; }
-      .cfb-auth-curve { display:none; }
-      .cfb-auth-right { padding:32px 20px 56px; }
-    }
-  `;
-
-  const leftPanel = (
-    <div className="cfb-auth-left">
-      <div className="cfb-auth-curve" />
-      <div style={{position:"relative",zIndex:1}}>
-        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{width:88,height:88,borderRadius:20,objectFit:"cover",marginBottom:24,boxShadow:"0 12px 32px rgba(0,0,0,0.4)"}} />
-        <h1 className="st" style={{color:"#fff",fontSize:30,lineHeight:1.15,marginBottom:14,letterSpacing:0.5}}>CARDÁPIO<br/><span style={{color:"#F5A623"}}>FÁCIL BRASIL</span></h1>
-        <p style={{color:"rgba(255,255,255,0.55)",fontSize:15,maxWidth:340,lineHeight:1.6}}>Automatize os pedidos do seu restaurante e receba direto no WhatsApp.</p>
-      </div>
-    </div>
-  );
-
   if(mode==="landing"){
     return (
-      <div className="cfb-auth-wrap">
-        <style>{globalStyles}{authStyles}</style>
-        {leftPanel}
-        <div className="cfb-auth-right">
-          <div className="cfb-auth-form" style={{textAlign:"center"}}>
-            <h2 className="st" style={{fontSize:24,color:"#1A1A1A",marginBottom:8}}>Bem-vindo</h2>
-            <p style={{color:"#9B8B7A",fontSize:14,marginBottom:32,lineHeight:1.6}}>Crie o cardápio digital do seu restaurante grátis, ou entre na sua conta.</p>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <button onClick={()=>setMode("signup")} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:12,padding:16,fontWeight:800,fontSize:15,cursor:"pointer"}}>Criar meu cardápio grátis</button>
-              <button onClick={()=>setMode("login")} style={{background:"transparent",color:"#1A1A1A",border:"2px solid #E5DDD5",borderRadius:12,padding:14,fontWeight:700,fontSize:14,cursor:"pointer"}}>Já tenho conta — Entrar</button>
-            </div>
-          </div>
+      <div style={{minHeight:"100vh",background:"#0D0D0D",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+        <style>{globalStyles}</style>
+        <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{maxWidth:320,width:"100%",marginBottom:8}} />
+        <h1 className="st" style={{color:"#fff",fontSize:20,marginTop:4,marginBottom:8,letterSpacing:1}}>CARDÁPIO <span style={{color:"#F5A623"}}>FÁCIL BRASIL</span></h1>
+        <p style={{color:"rgba(255,255,255,0.6)",fontSize:15,maxWidth:420,marginBottom:36}}>Crie o cardápio digital do seu restaurante e receba pedidos direto no WhatsApp — grátis pra começar.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
+          <button onClick={()=>setMode("signup")} style={{background:"#F5A623",color:"#1A1A1A",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:16,cursor:"pointer"}}>Criar meu cardápio grátis</button>
+          <button onClick={()=>setMode("login")} style={{background:"transparent",color:"#fff",border:"2px solid rgba(255,255,255,0.25)",borderRadius:14,padding:14,fontWeight:700,fontSize:15,cursor:"pointer"}}>Já tenho conta — Entrar</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="cfb-auth-wrap">
-      <style>{globalStyles}{authStyles}</style>
-      {leftPanel}
-      <div className="cfb-auth-right">
-        <div className="cfb-auth-form">
-          <p style={{color:"#F5A623",fontSize:12,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>{mode==="login"?"Acesse sua conta":"Criar conta"}</p>
-          <h2 style={{fontSize:24,fontWeight:800,color:"#1A1A1A",marginBottom:6}}>{mode==="login"?"Entrar no painel":"Vamos começar"}</h2>
-          <p style={{color:"#9B8B7A",fontSize:13,marginBottom:28}}>{mode==="login"?"Acesse o painel do seu restaurante":"Comece a vender pelo seu cardápio digital"}</p>
-
-          {mode==="signup"&&(
-            <div style={{marginBottom:16,textAlign:"left"}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B",display:"block",marginBottom:6}}>Nome do seu restaurante</label>
-              <input value={restaurantName} onChange={e=>setRestaurantName(e.target.value)} placeholder="Ex: Cantina da Maria" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
-            </div>
-          )}
-          <div style={{marginBottom:16,textAlign:"left"}}>
-            <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B",display:"block",marginBottom:6}}>E-mail</label>
-            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="seuemail@exemplo.com" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
-          </div>
-          <div style={{marginBottom:8,textAlign:"left"}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#6B6B6B"}}>Senha</label>
-            </div>
-            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Mínimo 6 caracteres" style={{width:"100%",border:"1.5px solid #E5DDD5",borderRadius:10,padding:"12px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleSignup())} />
-          </div>
-          {error&&<p style={{color:"#B91C1C",fontSize:13,margin:"14px 0 0",background:"#FEE2E2",padding:"10px 12px",borderRadius:8}}>{error}</p>}
-          <button onClick={mode==="login"?handleLogin:handleSignup} disabled={loading} style={{width:"100%",background:"#1A1A1A",color:"#fff",border:"none",borderRadius:12,padding:15,fontWeight:800,fontSize:15,cursor:loading?"default":"pointer",opacity:loading?0.7:1,marginTop:22,marginBottom:14}}>
-            {loading?"Aguarde...":(mode==="login"?"Entrar":"Criar conta")}
-          </button>
-          <button onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,cursor:"pointer",padding:6}}>
-            {mode==="login"?"Ainda não tem conta? Criar cardápio":"Já tem conta? Entrar"}
-          </button>
-          <button onClick={()=>{setMode("landing");setError("");}} style={{display:"block",margin:"8px auto 0",background:"transparent",border:"none",color:"#C9BEB1",fontSize:12,cursor:"pointer"}}>← Voltar</button>
+    <div style={{minHeight:"100vh",background:"#0D0D0D",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <style>{globalStyles}</style>
+      <div style={{background:"#fff",borderRadius:20,padding:36,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{textAlign:"center",marginBottom:8}}>
+          <img src={PLATFORM_LOGO} alt={PLATFORM_NAME} style={{maxWidth:180,width:"100%"}} />
         </div>
+        <h2 className="st" style={{fontSize:20,color:"#1A1A1A",textAlign:"center",marginBottom:4}}>{mode==="login"?"Entrar":"Criar sua conta"}</h2>
+        <p style={{color:"#9B8B7A",fontSize:13,textAlign:"center",marginBottom:24}}>{mode==="login"?"Acesse o painel do seu restaurante":"Comece a vender pelo seu cardápio digital"}</p>
+
+        {mode==="signup"&&(
+          <div style={{marginBottom:14,textAlign:"left"}}>
+            <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Nome do seu restaurante</label>
+            <input value={restaurantName} onChange={e=>setRestaurantName(e.target.value)} placeholder="Ex: Cantina da Maria" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          </div>
+        )}
+        <div style={{marginBottom:14,textAlign:"left"}}>
+          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Email</label>
+          <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="seuemail@exemplo.com" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+        </div>
+        <div style={{marginBottom:20,textAlign:"left"}}>
+          <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Senha</label>
+          <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Mínimo 6 caracteres" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#F5A623"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleSignup())} />
+        </div>
+        {error&&<p style={{color:"#EF4444",fontSize:13,marginBottom:14,background:"#FEE2E2",padding:"8px 12px",borderRadius:8}}>{error}</p>}
+        <button onClick={mode==="login"?handleLogin:handleSignup} disabled={loading} style={{width:"100%",background:"#1A1A1A",color:"#fff",border:"none",borderRadius:12,padding:14,fontWeight:800,fontSize:15,cursor:loading?"default":"pointer",opacity:loading?0.7:1,marginBottom:12}}>
+          {loading?"Aguarde...":(mode==="login"?"Entrar →":"Criar Conta →")}
+        </button>
+        <button onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,cursor:"pointer",padding:8}}>
+          {mode==="login"?"Ainda não tem conta? Criar cardápio":"Já tem conta? Entrar"}
+        </button>
       </div>
     </div>
   );
@@ -1612,6 +1727,7 @@ export default function App() {
   const [store,setStore]=useState(DEFAULT_STORE);
   const [categories,setCategories]=useState(DEFAULT_CATEGORIES);
   const [deliveryZones,setDeliveryZones]=useState([]);
+  const [coupons,setCoupons]=useState([]);
   const [loading,setLoading]=useState(true);
   const [session,setSession]=useState(null);
   const [notFound,setNotFound]=useState(false);
@@ -1669,6 +1785,11 @@ export default function App() {
       const dz = await db("delivery_zones","GET",null,`?restaurant_id=eq.${restaurantId}&order=min_km.asc`,token);
       setDeliveryZones(dz||[]);
     }catch(e){console.error("Erro ao carregar zonas de entrega:",e);}
+
+    try{
+      const cp = await db("coupons","GET",null,`?restaurant_id=eq.${restaurantId}&order=id.desc`,token);
+      setCoupons(cp||[]);
+    }catch(e){console.error("Erro ao carregar cupons:",e);}
   }
 
   useEffect(()=>{
@@ -1747,6 +1868,7 @@ export default function App() {
     setProducts([]);
     setCategories(DEFAULT_CATEGORIES);
     setDeliveryZones([]);
+    setCoupons([]);
   }
 
   if(loading)return <Spinner />;
@@ -1770,7 +1892,7 @@ export default function App() {
   // Owner dashboard at /admin
   if(isAdminRoute){
     if(!session) return <OwnerAuth onAuthenticated={handleAuthenticated} initialMode="login" />;
-    return <AdminArea products={products} setProducts={setProducts} store={store} setStore={setStore} categories={categories} setCategories={setCategories} deliveryZones={deliveryZones} setDeliveryZones={setDeliveryZones} accessToken={session.access_token} onLogout={handleLogout} />;
+    return <AdminArea products={products} setProducts={setProducts} store={store} setStore={setStore} categories={categories} setCategories={setCategories} deliveryZones={deliveryZones} setDeliveryZones={setDeliveryZones} coupons={coupons} setCoupons={setCoupons} accessToken={session.access_token} onLogout={handleLogout} />;
   }
 
   // Platform landing page at /
