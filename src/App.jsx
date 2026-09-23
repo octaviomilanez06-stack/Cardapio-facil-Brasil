@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Component } from "react";
 
 const SUPABASE_URL = "https://uhhddjkwrookoivvrunz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RPyD9IG4CMQ6Cbon7SmbzA_21Fvy20X";
@@ -867,6 +867,24 @@ function PForm({data,setData,onSave,onCancel,title,categories,saving}){
   );
 }
 
+class SectionErrorBoundary extends Component {
+  constructor(props){ super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error){ return { error }; }
+  componentDidCatch(error, info){ console.error("Erro na seção do admin:", error, info); }
+  render(){
+    if(this.state.error){
+      return (
+        <div style={{padding:24,textAlign:"center",background:"#FEE2E2",borderRadius:16,color:"#991B1B",maxWidth:600}}>
+          <p style={{fontWeight:800,marginBottom:8,fontSize:15}}>⚠️ Algo deu errado nesta seção</p>
+          <p style={{fontSize:12,marginBottom:16,fontFamily:"monospace",wordBreak:"break-word"}}>{String(this.state.error?.message||this.state.error)}</p>
+          <button onClick={()=>this.setState({error:null})} style={{background:"#991B1B",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Tentar novamente</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -898,51 +916,59 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
 
   useEffect(()=>{
     if(!leafletReady||!mapRef.current||lat==null||lng==null)return;
-    const L=window.L;
-    if(!mapInstance.current){
-      mapInstance.current=L.map(mapRef.current).setView([lat,lng],12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-        attribution:'© OpenStreetMap',
-        maxZoom:19,
-      }).addTo(mapInstance.current);
-    }else{
-      mapInstance.current.setView([lat,lng]);
-    }
-    layersRef.current.forEach(l=>mapInstance.current.removeLayer(l));
-    layersRef.current=[];
+    const numLat = Number(lat), numLng = Number(lng);
+    if(isNaN(numLat)||isNaN(numLng))return;
+    try{
+      const L=window.L;
+      if(!mapInstance.current){
+        mapInstance.current=L.map(mapRef.current).setView([numLat,numLng],12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+          attribution:'© OpenStreetMap',
+          maxZoom:19,
+        }).addTo(mapInstance.current);
+      }else{
+        mapInstance.current.setView([numLat,numLng]);
+      }
+      layersRef.current.forEach(l=>{ try{ mapInstance.current.removeLayer(l); }catch{} });
+      layersRef.current=[];
 
-    const storeIcon=L.divIcon({html:"🏪",className:"",iconSize:[28,28],iconAnchor:[14,14]});
-    const marker=L.marker([lat,lng],{icon:storeIcon}).addTo(mapInstance.current);
-    layersRef.current.push(marker);
+      const storeIcon=L.divIcon({html:"🏪",className:"",iconSize:[28,28],iconAnchor:[14,14]});
+      const marker=L.marker([numLat,numLng],{icon:storeIcon}).addTo(mapInstance.current);
+      layersRef.current.push(marker);
 
-    const colors=["#8B1A1A","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
-    let biggestKm = maxKm ? Number(maxKm) : 5;
-    if(zones&&zones.length>0){
-      const sortedDesc=[...zones].sort((a,b)=>Number(b.max_km)-Number(a.max_km));
-      biggestKm = Math.max(biggestKm, Number(sortedDesc[0].max_km));
-      sortedDesc.forEach((z,idx)=>{
-        const circle=L.circle([lat,lng],{
-          radius:Number(z.max_km)*1000,
-          color:colors[idx%colors.length],
-          fillColor:colors[idx%colors.length],
+      const colors=["#8B1A1A","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
+      const numMaxKm = Number(maxKm);
+      let biggestKm = (!isNaN(numMaxKm) && numMaxKm>0) ? numMaxKm : 5;
+      const validZones = (zones||[]).filter(z=>!isNaN(Number(z.max_km))&&Number(z.max_km)>0);
+      if(validZones.length>0){
+        const sortedDesc=[...validZones].sort((a,b)=>Number(b.max_km)-Number(a.max_km));
+        biggestKm = Math.max(biggestKm, Number(sortedDesc[0].max_km));
+        sortedDesc.forEach((z,idx)=>{
+          const circle=L.circle([numLat,numLng],{
+            radius:Number(z.max_km)*1000,
+            color:colors[idx%colors.length],
+            fillColor:colors[idx%colors.length],
+            fillOpacity:0.1,
+            weight:2,
+          }).addTo(mapInstance.current);
+          circle.bindTooltip(`até ${z.max_km}km — R$ ${Number(z.fee||0).toFixed(2)}`,{permanent:false,direction:"top"});
+          layersRef.current.push(circle);
+        });
+      }else if(!isNaN(numMaxKm) && numMaxKm>0){
+        const circle=L.circle([numLat,numLng],{
+          radius:numMaxKm*1000,
+          color:"#8B1A1A",
+          fillColor:"#8B1A1A",
           fillOpacity:0.1,
           weight:2,
         }).addTo(mapInstance.current);
-        circle.bindTooltip(`até ${z.max_km}km — R$ ${Number(z.fee).toFixed(2)}`,{permanent:false,direction:"top"});
         layersRef.current.push(circle);
-      });
-    }else if(maxKm){
-      const circle=L.circle([lat,lng],{
-        radius:Number(maxKm)*1000,
-        color:"#8B1A1A",
-        fillColor:"#8B1A1A",
-        fillOpacity:0.1,
-        weight:2,
-      }).addTo(mapInstance.current);
-      layersRef.current.push(circle);
+      }
+      const boundsCircle=L.circle([numLat,numLng],{radius:biggestKm*1000});
+      mapInstance.current.fitBounds(boundsCircle.getBounds(),{padding:[20,20]});
+    }catch(e){
+      console.error("Erro ao desenhar o mapa de entrega:",e);
     }
-    const boundsCircle=L.circle([lat,lng],{radius:biggestKm*1000});
-    mapInstance.current.fitBounds(boundsCircle.getBounds(),{padding:[20,20]});
   },[leafletReady,lat,lng,maxKm,JSON.stringify(zones)]);
 
   useEffect(()=>{
@@ -1279,6 +1305,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
           <div style={{background:store.is_open?"#2ECC71":"#EF4444",color:"#fff",padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:700}}>{store.is_open?"● Aberta":"● Fechada"}</div>
         </div>
         <div style={{padding:24}}>
+        <SectionErrorBoundary key={section}>
 
           {section==="products"&&(
             <div>
@@ -1596,10 +1623,11 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
             <div style={{textAlign:"center",padding:60,color:"#9B8B7A"}}>
               <div style={{fontSize:48,marginBottom:12}}>📱</div>
               <p style={{fontWeight:700,fontSize:18,marginBottom:12}}>Pedidos via WhatsApp</p>
-              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp (21) 97701-6114</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
+              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp {store.whatsapp_number||"(número não configurado — vá em Minha Loja)"}</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
             </div>
           )}
 
+        </SectionErrorBoundary>
         </div>
       </div>
     </div>
