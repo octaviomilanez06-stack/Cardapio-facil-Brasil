@@ -72,6 +72,7 @@ function slugify(text) {
 const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { width: 100%; max-width: none; margin: 0; padding: 0; text-align: left; }
   body { font-family: 'Inter', sans-serif; background: #F5F0EB; color: #1A1A1A; }
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
@@ -1269,7 +1270,7 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   const MENU=[{id:"products",icon:"🍔",label:"Produtos"},{id:"categories",icon:"📂",label:"Categorias"},{id:"coupons",icon:"🎟️",label:"Cupons"},{id:"delivery",icon:"🛵",label:"Entrega"},{id:"store",icon:"🏪",label:"Minha Loja"},{id:"orders",icon:"📱",label:"Pedidos"}];
 
   return(
-    <div style={{display:"flex",height:"100vh",background:"#F5F0EB",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",width:"100%",background:"#F5F0EB",overflow:"hidden"}}>
       <style>{globalStyles}</style>
       {notif&&<div style={{position:"fixed",top:20,right:20,zIndex:9999,background:notif.type==="success"?"#2ECC71":"#EF4444",color:"#fff",padding:"12px 20px",borderRadius:12,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.2)"}}>{notif.msg}</div>}
       <div style={{width:sidebarOpen?220:60,background:"#1A0A0A",display:"flex",flexDirection:"column",transition:"width 0.3s",overflow:"hidden",flexShrink:0}}>
