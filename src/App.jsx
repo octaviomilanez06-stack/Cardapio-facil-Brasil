@@ -342,6 +342,138 @@ function OrderHistory({ user, onBack }) {
 }
 
 // ─── CUSTOMER AREA ────────────────────────────────────────────────────────────
+function AddressMapPicker({ storeLat, storeLng, zones, maxKm, onResult }) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markerRef = useRef(null);
+  const [leafletReady, setLeafletReady] = useState(typeof window!=="undefined" && !!window.L);
+  const [searchText, setSearchText] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [hasPin, setHasPin] = useState(false);
+
+  useEffect(()=>{
+    if(typeof window==="undefined")return;
+    if(window.L){ setLeafletReady(true); return; }
+    if(!document.getElementById("leaflet-css")){
+      const link=document.createElement("link");
+      link.id="leaflet-css";
+      link.rel="stylesheet";
+      link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    const existing=document.getElementById("leaflet-js");
+    if(existing){
+      existing.addEventListener("load",()=>setLeafletReady(true));
+      if(window.L)setLeafletReady(true);
+    }else{
+      const script=document.createElement("script");
+      script.id="leaflet-js";
+      script.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload=()=>setLeafletReady(true);
+      document.body.appendChild(script);
+    }
+  },[]);
+
+  function reportResult(lat,lng){
+    if(storeLat==null||storeLng==null){
+      onResult({lat,lng,distanceKm:null,fee:null,status:"error",error:"A loja ainda não configurou sua localização."});
+      return;
+    }
+    try{
+      const distanceKm = haversineDistanceKm(Number(storeLat),Number(storeLng),lat,lng);
+      const maxKmNum = Number(maxKm);
+      if(!isNaN(maxKmNum) && maxKmNum>0 && distanceKm>maxKmNum){
+        onResult({lat,lng,distanceKm,fee:null,status:"out_of_range",error:`Esse ponto está a ${distanceKm.toFixed(1)}km da loja, fora da área de entrega (até ${maxKmNum}km).`});
+        return;
+      }
+      const zone = findDeliveryFee(distanceKm, zones);
+      if(!zone){
+        onResult({lat,lng,distanceKm,fee:null,status:"out_of_range",error:`Não encontramos uma faixa de preço para ${distanceKm.toFixed(1)}km.`});
+        return;
+      }
+      onResult({lat,lng,distanceKm,fee:Number(zone.fee),status:"ok",error:null});
+    }catch(e){
+      onResult({lat,lng,distanceKm:null,fee:null,status:"error",error:"Não foi possível calcular a distância."});
+    }
+  }
+
+  function placeMarker(lat,lng){
+    const L=window.L;
+    if(!mapInstance.current)return;
+    if(!markerRef.current){
+      markerRef.current = L.marker([lat,lng],{draggable:true}).addTo(mapInstance.current);
+      markerRef.current.on("dragend",()=>{
+        const pos=markerRef.current.getLatLng();
+        reportResult(pos.lat,pos.lng);
+      });
+    }else{
+      markerRef.current.setLatLng([lat,lng]);
+    }
+    setHasPin(true);
+    mapInstance.current.setView([lat,lng],16);
+    reportResult(lat,lng);
+  }
+
+  useEffect(()=>{
+    if(!leafletReady||!mapRef.current||mapInstance.current)return;
+    try{
+      const L=window.L;
+      const startLat = storeLat!=null?Number(storeLat):-23.5505;
+      const startLng = storeLng!=null?Number(storeLng):-46.6333;
+      mapInstance.current=L.map(mapRef.current).setView([startLat,startLng],14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        attribution:'© OpenStreetMap',
+        maxZoom:19,
+      }).addTo(mapInstance.current);
+      if(storeLat!=null&&storeLng!=null){
+        const storeIcon=L.divIcon({html:"🏪",className:"",iconSize:[26,26],iconAnchor:[13,13]});
+        L.marker([startLat,startLng],{icon:storeIcon,interactive:false}).addTo(mapInstance.current);
+      }
+      mapInstance.current.on("click",(e)=>placeMarker(e.latlng.lat,e.latlng.lng));
+    }catch(e){
+      console.error("Erro ao iniciar o mapa:",e);
+    }
+  },[leafletReady]);
+
+  useEffect(()=>{
+    return ()=>{
+      if(mapInstance.current){
+        try{ mapInstance.current.remove(); }catch{}
+        mapInstance.current=null;
+      }
+    };
+  },[]);
+
+  async function handleSearch(){
+    if(!searchText||searchText.trim().length<5)return;
+    setSearching(true); setSearchError("");
+    try{
+      const geo=await geocodeAddress(searchText);
+      placeMarker(geo.lat,geo.lng);
+    }catch(e){
+      setSearchError("Não achamos esse endereço automaticamente — sem problema, é só tocar no mapa no local certo, ou arrastar o pino.");
+    }
+    setSearching(false);
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <input value={searchText} onChange={e=>setSearchText(e.target.value)} placeholder="Buscar endereço no mapa (opcional)" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"9px 12px",outline:"none",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleSearch();}}} />
+        <button onClick={handleSearch} disabled={searching} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"9px 14px",fontWeight:700,fontSize:12,cursor:searching?"default":"pointer",whiteSpace:"nowrap",opacity:searching?0.7:1}}>{searching?"Buscando...":"🔍 Buscar"}</button>
+      </div>
+      {searchError&&<p style={{fontSize:12,color:"#C2410C",marginBottom:8}}>{searchError}</p>}
+      {!leafletReady?(
+        <div style={{padding:20,textAlign:"center",color:"#9B8B7A",background:"#F5F0EB",borderRadius:12,fontSize:13}}>Carregando mapa...</div>
+      ):(
+        <div ref={mapRef} style={{height:260,borderRadius:12,overflow:"hidden"}} />
+      )}
+      <p style={{fontSize:11,color:"#9B8B7A",marginTop:8}}>{hasPin?"📍 Se o pino não estiver no lugar certo, é só arrastar para ajustar.":"👆 Toque no mapa no local exato da entrega, ou use a busca acima."}</p>
+    </div>
+  );
+}
+
 function CustomerArea({ products, store, categories, deliveryZones, user, onLogout }) {
   const [cart,setCart]=useState([]);
   const [activeCategory,setActiveCategory]=useState("Todos");
@@ -372,7 +504,8 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
   const cartTotal = cart.reduce((s,i)=>s+(i.price+i.extrasTotal)*i.qty,0);
   const cartCount = cart.reduce((s,i)=>s+i.qty,0);
   const hasZones = deliveryZones && deliveryZones.length>0;
-  const deliveryFeeToUse = orderType!=="delivery" ? 0 : (hasZones ? (deliveryCalc.fee ?? 0) : Number(store.delivery_fee));
+  const feeConfirmed = !hasZones || deliveryCalc.status==="ok";
+  const deliveryFeeToUse = orderType!=="delivery" ? 0 : (hasZones ? (deliveryCalc.fee ?? Number(store.delivery_fee||0)) : Number(store.delivery_fee||0));
   const discountAmount = couponState.status==="applied" ? cartTotal*(Number(couponState.coupon.discount_percent)/100) : 0;
   const total = cartTotal-discountAmount+deliveryFeeToUse;
 
@@ -411,40 +544,6 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
     setCouponMode(null);
   }
 
-  async function calculateDelivery(){
-    if(!info.address || info.address.trim().length<8){
-      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:"Digite o endereço completo (rua, número, bairro, cidade)."});
-      return;
-    }
-    if(!hasZones){
-      setDeliveryCalc({status:"idle",distanceKm:null,fee:null,error:null});
-      return;
-    }
-    if(store.store_lat==null||store.store_lng==null){
-      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:"A loja ainda não configurou a localização para cálculo automático de frete. Entre em contato pelo WhatsApp."});
-      return;
-    }
-    setDeliveryCalc({status:"loading",distanceKm:null,fee:null,error:null});
-    try{
-      const geo = await geocodeAddress(info.address);
-      const distanceKm = haversineDistanceKm(store.store_lat, store.store_lng, geo.lat, geo.lng);
-      const maxKm = Number(store.max_delivery_km)||0;
-      if(maxKm>0 && distanceKm>maxKm){
-        setDeliveryCalc({status:"out_of_range",distanceKm,fee:null,error:`Seu endereço está a ${distanceKm.toFixed(1)}km da loja, fora da nossa área de entrega (até ${maxKm}km).`});
-        return;
-      }
-      const zone = findDeliveryFee(distanceKm, deliveryZones);
-      if(!zone){
-        setDeliveryCalc({status:"out_of_range",distanceKm,fee:null,error:`Não encontramos uma faixa de entrega para ${distanceKm.toFixed(1)}km. Entre em contato pelo WhatsApp para confirmar.`});
-        return;
-      }
-      setDeliveryCalc({status:"ok",distanceKm,fee:Number(zone.fee),error:null});
-    }catch(e){
-      console.error(e);
-      setDeliveryCalc({status:"error",distanceKm:null,fee:null,error:e.message||"Não foi possível calcular a distância. Confira o endereço e tente novamente."});
-    }
-  }
-
   function getExtrasTotal(comps,sel){
     if(!comps)return 0;
     return comps.reduce((s,g)=>s+g.options.reduce((gs,opt,i)=>gs+(sel[`${g.id}-${i}`]||0)*opt.price,0),0);
@@ -467,15 +566,33 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
     if(!store.whatsapp_number)return alert("Esta loja ainda não configurou um número de WhatsApp para receber pedidos.");
     if(!info.name||!info.phone)return alert("Preencha nome e telefone!");
     if(orderType==="delivery"&&!info.address)return alert("Preencha o endereço!");
-    if(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")return alert("Calcule o frete antes de enviar o pedido (botão 'Calcular frete').");
     if(couponMode===null)return alert("Escolha 'Tenho um cupom' ou 'Não tenho cupom' antes de finalizar.");
     if(couponMode==="input"&&couponState.status!=="applied")return alert("Aplique o cupom ou clique em 'Cancelar' e escolha 'Não tenho cupom'.");
     const mapsLink = orderType==="delivery" ? `\n🗺️ *Ver no Maps:* https://maps.google.com/?q=${encodeURIComponent(info.address)}` : "";
-    const distanceText = orderType==="delivery"&&hasZones&&deliveryCalc.distanceKm!=null ? ` (${deliveryCalc.distanceKm.toFixed(1)}km)` : "";
+    const distanceText = orderType==="delivery"&&hasZones&&deliveryCalc.status==="ok"&&deliveryCalc.distanceKm!=null ? ` (${deliveryCalc.distanceKm.toFixed(1)}km)` : "";
+    const feeNote = orderType==="delivery"&&hasZones&&!feeConfirmed ? " ⚠️ *A CONFIRMAR COM O CLIENTE*" : "";
     const items = cart.map(i=>`• ${i.qty}x ${i.name}${i.extrasText?` (${i.extrasText})`:""} — R$ ${((i.price+i.extrasTotal)*i.qty).toFixed(2)}`).join("\n");
     const couponText = couponState.status==="applied" ? `\n🎟️ Cupom: ${couponState.coupon.code} (-${couponState.coupon.discount_percent}% • − R$ ${discountAmount.toFixed(2)})` : "";
-    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${couponText}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${deliveryFeeToUse.toFixed(2)}${distanceText}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
+    const msg = `🍗 *NOVO PEDIDO - ${store.name.toUpperCase()}*\n\n👤 *Cliente:* ${info.name}\n📱 *Telefone:* ${info.phone}\n${orderType==="delivery"?`📍 Endereço: ${info.address}${mapsLink}\n`:"🏪 Retirada no local\n"}\n🛒 Itens:\n${items}\n\n💰 Subtotal: R$ ${cartTotal.toFixed(2)}${couponText}${orderType==="delivery"?`\n🛵 *Entrega:* R$ ${deliveryFeeToUse.toFixed(2)}${distanceText}${feeNote}`:""}\n💵 Total: R$ ${total.toFixed(2)}\n💳 Pagamento: ${info.payment.toUpperCase()}${info.payment==="dinheiro"&&info.change?`\n💵 *Troco para:* R$ ${info.change}`:""}\n📦 Tipo: ${orderType==="delivery"?"Entrega":"Retirada"}`;
     window.open(`https://wa.me/${store.whatsapp_number}?text=${encodeURIComponent(msg)}`,"_blank");
+
+    // Salva o pedido no painel do restaurante (não bloqueia o envio pelo WhatsApp se falhar)
+    db("orders","POST",{
+      restaurant_id: store.id,
+      customer_name: info.name,
+      customer_phone: info.phone,
+      order_type: orderType,
+      address: orderType==="delivery" ? info.address : null,
+      items: cart.map(i=>({name:i.name,qty:i.qty,extrasText:i.extrasText,price:i.price,extrasTotal:i.extrasTotal})),
+      subtotal: cartTotal,
+      discount: discountAmount,
+      coupon_code: couponState.status==="applied" ? couponState.coupon.code : null,
+      delivery_fee: deliveryFeeToUse,
+      total: total,
+      payment: info.payment,
+      change_for: info.payment==="dinheiro" ? (info.change||null) : null,
+      status: "received",
+    }).catch(e=>console.error("Não foi possível salvar o pedido no painel (o WhatsApp foi enviado normalmente):",e));
 
     // Save order to user history
     if(currentUser){
@@ -567,18 +684,28 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           {orderType==="delivery"&&(
             <div>
               <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço completo *</label>
-              <input type="text" placeholder="Rua, número, bairro, cidade" value={info.address} onChange={e=>{setInfo(p=>({...p,address:e.target.value}));setDeliveryCalc({status:"idle",distanceKm:null,fee:null,error:null});}} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
-              {info.address&&<a href={`https://maps.google.com/?q=${encodeURIComponent(info.address)}`} target="_blank" rel="noreferrer" style={{fontSize:12,color:"#8B1A1A",fontWeight:600}}>🗺️ Ver no Google Maps</a>}
+              <input type="text" placeholder="Rua, número, bairro, cidade — do jeito que você souber" value={info.address} onChange={e=>setInfo(p=>({...p,address:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+              {info.address&&(
+                <a href={`https://maps.google.com/?q=${encodeURIComponent(info.address)}`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:13,color:"#1D4ED8",fontWeight:700,background:"#EFF6FF",padding:"8px 14px",borderRadius:10}}>🗺️ Não tem certeza do endereço? Confira no Google Maps</a>
+              )}
               {hasZones&&(
-                <div style={{marginTop:12}}>
-                  <button onClick={calculateDelivery} disabled={deliveryCalc.status==="loading"} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:deliveryCalc.status==="loading"?"default":"pointer",opacity:deliveryCalc.status==="loading"?0.7:1}}>
-                    {deliveryCalc.status==="loading"?"Calculando...":"📍 Calcular frete"}
-                  </button>
+                <div style={{marginTop:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>📍 Marque sua localização no mapa (calcula o frete certinho)</label>
+                  <AddressMapPicker
+                    storeLat={store.store_lat}
+                    storeLng={store.store_lng}
+                    zones={deliveryZones}
+                    maxKm={store.max_delivery_km}
+                    onResult={(r)=>setDeliveryCalc({status:r.status,distanceKm:r.distanceKm,fee:r.fee,error:r.error})}
+                  />
                   {deliveryCalc.status==="ok"&&(
                     <p style={{fontSize:13,color:"#2ECC71",fontWeight:700,marginTop:8}}>✓ {deliveryCalc.distanceKm.toFixed(1)}km da loja — frete R$ {deliveryCalc.fee.toFixed(2)}</p>
                   )}
                   {(deliveryCalc.status==="error"||deliveryCalc.status==="out_of_range")&&(
-                    <p style={{fontSize:13,color:"#EF4444",fontWeight:600,marginTop:8}}>⚠️ {deliveryCalc.error}</p>
+                    <div style={{marginTop:8,background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:10,padding:"10px 12px"}}>
+                      <p style={{fontSize:13,color:"#C2410C",fontWeight:600}}>⚠️ {deliveryCalc.error}</p>
+                      <p style={{fontSize:12,color:"#9B8B7A",marginTop:4}}>Sem problema — pode enviar o pedido normalmente. A loja confirma a taxa de entrega com você pelo WhatsApp.</p>
+                    </div>
                   )}
                 </div>
               )}
@@ -638,11 +765,12 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           ))}
           <div style={{borderTop:"1px solid #E5DDD5",marginTop:12,paddingTop:12}}>
             {couponState.status==="applied"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#2ECC71",fontWeight:700}}><span>Desconto ({couponState.coupon.code})</span><span>− R$ {discountAmount.toFixed(2)}</span></div>}
-            {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega</span><span>{hasZones&&deliveryCalc.status!=="ok"?"a calcular":`R$ ${deliveryFeeToUse.toFixed(2)}`}</span></div>}
+            {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega{!feeConfirmed?" (estimada)":""}</span><span>R$ {deliveryFeeToUse.toFixed(2)}{!feeConfirmed?" *":""}</span></div>}
+            {orderType==="delivery"&&!feeConfirmed&&<p style={{fontSize:11,color:"#C2410C",marginBottom:8}}>* valor a confirmar com a loja pelo WhatsApp</p>}
             <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"#8B1A1A"}}>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
-        <button onClick={sendWhatsApp} disabled={(orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied")} style={{width:"100%",background:((orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:((orderType==="delivery"&&hasZones&&deliveryCalc.status!=="ok")||couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
+        <button onClick={sendWhatsApp} disabled={couponMode===null||(couponMode==="input"&&couponState.status!=="applied")} style={{width:"100%",background:(couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:(couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
       </div>
     </div>
   );
@@ -1003,6 +1131,41 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
   const [newCatName,setNewCatName]=useState("");
   const [newZone,setNewZone]=useState({min_km:"",max_km:"",fee:""});
   const [geocoding,setGeocoding]=useState(false);
+  const [orders,setOrders]=useState([]);
+  const [ordersLoading,setOrdersLoading]=useState(false);
+  const [ordersLoaded,setOrdersLoaded]=useState(false);
+
+  async function loadOrders(){
+    setOrdersLoading(true);
+    try{
+      const result = await adb("orders","GET",null,`?restaurant_id=eq.${store.id}&order=created_at.desc`);
+      setOrders(result||[]);
+      setOrdersLoaded(true);
+    }catch(e){
+      console.error("Erro ao carregar pedidos:",e);
+      notify("Erro ao carregar pedidos. Veja o console (F12).","error");
+    }
+    setOrdersLoading(false);
+  }
+
+  useEffect(()=>{
+    if(section==="orders"&&!ordersLoaded){
+      loadOrders();
+    }
+  },[section]);
+
+  async function advanceOrderStatus(orderId, currentStatus){
+    const idx = STATUS_FLOW.indexOf(currentStatus);
+    if(idx<0||idx>=STATUS_FLOW.length-1)return;
+    const nextStatus = STATUS_FLOW[idx+1];
+    try{
+      await adb("orders","PATCH",{status:nextStatus},`?id=eq.${orderId}`);
+      setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status:nextStatus}:o));
+    }catch(e){
+      console.error(e);
+      notify("Erro ao atualizar status do pedido.","error");
+    }
+  }
 
   function notify(msg,type="success"){setNotif({msg,type});setTimeout(()=>setNotif(null),3000);}
 
@@ -1621,10 +1784,62 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
           )}
 
           {section==="orders"&&(
-            <div style={{textAlign:"center",padding:60,color:"#9B8B7A"}}>
-              <div style={{fontSize:48,marginBottom:12}}>📱</div>
-              <p style={{fontWeight:700,fontSize:18,marginBottom:12}}>Pedidos via WhatsApp</p>
-              <p style={{fontSize:14,maxWidth:400,margin:"0 auto",lineHeight:1.7}}>Quando um cliente finaliza o pedido, você recebe no <strong style={{color:"#8B1A1A"}}>WhatsApp {store.whatsapp_number||"(número não configurado — vá em Minha Loja)"}</strong> com todos os detalhes: nome, endereço, link do Maps, itens e total.</p>
+            <div style={{maxWidth:700}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                <p style={{color:"#9B8B7A",fontSize:14}}>{orders.length} pedido{orders.length!==1?"s":""}</p>
+                <button onClick={loadOrders} disabled={ordersLoading} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontWeight:700,fontSize:13,cursor:ordersLoading?"default":"pointer",opacity:ordersLoading?0.7:1}}>{ordersLoading?"Atualizando...":"🔄 Atualizar"}</button>
+              </div>
+
+              {orders.length===0&&!ordersLoading&&(
+                <div style={{textAlign:"center",padding:60,color:"#9B8B7A",background:"#fff",borderRadius:16}}>
+                  <div style={{fontSize:48,marginBottom:12}}>📋</div>
+                  <p style={{fontWeight:700,fontSize:16,marginBottom:8}}>Nenhum pedido ainda</p>
+                  <p style={{fontSize:13,maxWidth:360,margin:"0 auto",lineHeight:1.6}}>Assim que um cliente finalizar uma compra, o pedido aparece aqui automaticamente — além de chegar no seu WhatsApp <strong style={{color:"#8B1A1A"}}>{store.whatsapp_number||"(configure em Minha Loja)"}</strong>.</p>
+                </div>
+              )}
+
+              {orders.map(o=>{
+                const statusIdx = STATUS_FLOW.indexOf(o.status);
+                const isFinal = statusIdx>=STATUS_FLOW.length-1;
+                const items = Array.isArray(o.items) ? o.items : [];
+                const createdDate = o.created_at ? new Date(o.created_at) : null;
+                return (
+                  <div key={o.id} style={{background:"#fff",borderRadius:16,padding:20,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
+                      <div>
+                        <p style={{fontWeight:800,fontSize:15}}>{o.customer_name}</p>
+                        <p style={{fontSize:12,color:"#9B8B7A"}}>{o.customer_phone} {createdDate?`• ${createdDate.toLocaleDateString("pt-BR")} ${createdDate.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`:""}</p>
+                      </div>
+                      <span style={{background:"#F5F0EB",padding:"4px 12px",borderRadius:20,fontSize:11,fontWeight:700,color:"#8B1A1A"}}>{STATUS_LABELS[o.status]||o.status}</span>
+                    </div>
+                    <div style={{background:"#F5F0EB",borderRadius:10,padding:12,marginBottom:10}}>
+                      {items.map((it,i)=>(
+                        <p key={i} style={{fontSize:13,marginBottom:2}}>{it.qty}x {it.name}{it.extrasText?` (${it.extrasText})`:""}</p>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#9B8B7A",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                      <span>{o.order_type==="delivery"?"🛵 Entrega":"🏪 Retirada"}</span>
+                      <span>💳 {(o.payment||"").toUpperCase()}</span>
+                      <span style={{fontWeight:700,color:"#8B1A1A"}}>Total: R$ {Number(o.total).toFixed(2)}</span>
+                    </div>
+                    {o.order_type==="delivery"&&o.address&&(
+                      <p style={{fontSize:12,color:"#9B8B7A",marginBottom:10}}>📍 {o.address}</p>
+                    )}
+                    {o.coupon_code&&(
+                      <p style={{fontSize:12,color:"#2ECC71",marginBottom:10}}>🎟️ Cupom {o.coupon_code} aplicado (− R$ {Number(o.discount).toFixed(2)})</p>
+                    )}
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      {!isFinal&&(
+                        <button onClick={()=>advanceOrderStatus(o.id,o.status)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                          Avançar para "{STATUS_LABELS[STATUS_FLOW[statusIdx+1]]}"
+                        </button>
+                      )}
+                      {isFinal&&<span style={{fontSize:12,color:"#2ECC71",fontWeight:700}}>✓ Pedido concluído</span>}
+                      <a href={`https://wa.me/${(o.customer_phone||"").replace(/\D/g,"")}`} target="_blank" rel="noreferrer" style={{background:"#25D366",color:"#fff",borderRadius:8,padding:"8px 14px",fontWeight:700,fontSize:12,textDecoration:"none"}}>📱 WhatsApp</a>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
