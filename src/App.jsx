@@ -73,7 +73,7 @@ const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body, #root { width: 100%; max-width: none; margin: 0; padding: 0; text-align: left; }
-  body { font-family: 'Inter', sans-serif; background: #F5F0EB; color: #1A1A1A; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg, #F5F0EB); color: #1A1A1A; }
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
   input, textarea, select, button { font-family: 'Inter', sans-serif; }
@@ -92,7 +92,17 @@ const DEFAULT_STORE = {
   logo: "🍽️", logo_shape: "circle", title_color: "#8B1A1A", is_open: true,
   store_address: "", store_lat: null, store_lng: null, max_delivery_km: 10,
   whatsapp_number: "", slug: "",
+  background_color: "#F5F0EB", font_family: "Inter",
 };
+
+const FONT_OPTIONS = [
+  { value: "Inter", label: "Inter (moderna, neutra)", googleUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" },
+  { value: "Poppins", label: "Poppins (arredondada, amigável)", googleUrl: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" },
+  { value: "Montserrat", label: "Montserrat (elegante, geométrica)", googleUrl: "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" },
+  { value: "Nunito", label: "Nunito (suave, descontraída)", googleUrl: "https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" },
+  { value: "Playfair Display", label: "Playfair Display (clássica, sofisticada)", googleUrl: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&display=swap" },
+  { value: "Barlow Condensed", label: "Barlow Condensed (forte, esportiva)", googleUrl: "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&display=swap" },
+];
 
 function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -136,7 +146,7 @@ const DEFAULT_CATEGORIES = [
   { id: 4, name: "🍰 Sobremesas", order: 4 },
 ];
 
-const TAG_COLORS = { bestseller: "#8B1A1A", new: "#2ECC71", promo: "#F59E0B" };
+const TAG_COLORS = { bestseller: "var(--brand)", new: "#2ECC71", promo: "#F59E0B" };
 const TAG_LABELS = { bestseller: "Mais Vendido", new: "Novo", promo: "Promoção" };
 const STATUS_FLOW = ["received","accepted","preparing","delivering","delivered"];
 const STATUS_LABELS = { received:"Recebido", accepted:"Aceito", preparing:"Preparando", delivering:"A caminho", delivered:"Entregue" };
@@ -151,7 +161,7 @@ function ImageUpload({ value, onChange, style }) {
   return (
     <div style={style}>
       <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
-      <div onClick={()=>ref.current.click()} style={{border:"2px dashed #D4C5B0",borderRadius:12,padding:14,textAlign:"center",cursor:"pointer",background:"#FAF7F4"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#8B1A1A"} onMouseLeave={e=>e.currentTarget.style.borderColor="#D4C5B0"}>
+      <div onClick={()=>ref.current.click()} style={{border:"2px dashed #D4C5B0",borderRadius:12,padding:14,textAlign:"center",cursor:"pointer",background:"#FAF7F4"}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--brand)"} onMouseLeave={e=>e.currentTarget.style.borderColor="#D4C5B0"}>
         {value?<img src={value} alt="preview" style={{maxHeight:120,borderRadius:8,objectFit:"cover",maxWidth:"100%"}} />:<div><div style={{fontSize:28,marginBottom:6}}>📷</div><p style={{fontSize:13,color:"#9B8B7A"}}>Clique para escolher imagem</p></div>}
       </div>
     </div>
@@ -163,7 +173,7 @@ function Spinner() {
     <div style={{minHeight:"100vh",background:"#1A0A0A",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
       <style>{globalStyles}</style>
       <div style={{fontSize:56,marginBottom:16}}>🍗</div>
-      <p className="st" style={{fontSize:28,color:"#8B1A1A"}}>Billy Chicken</p>
+      <p className="st" style={{fontSize:28,color:"var(--brand)"}}>Billy Chicken</p>
       <p style={{color:"rgba(255,255,255,0.4)",fontSize:13,marginTop:8}}>Carregando...</p>
     </div>
   );
@@ -189,7 +199,7 @@ function ComplementSelector({ complements, selected, onChange }) {
     <div style={{marginTop:16}}>
       {complements.map(group=>(
         <div key={group.id} style={{marginBottom:16}}>
-          <div style={{background:"#F5F0EB",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+          <div style={{background:"var(--bg)",borderRadius:10,padding:"10px 14px",marginBottom:8}}>
             <p style={{fontWeight:700,fontSize:14}}>{group.title}</p>
             <p style={{fontSize:11,color:"#9B8B7A"}}>Escolha até {group.max} opção{group.max>1?"ões":""}</p>
           </div>
@@ -211,12 +221,12 @@ function ComplementSelector({ complements, selected, onChange }) {
               <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 4px",borderBottom:"1px solid #F0EAE3"}}>
                 <div>
                   <p style={{fontSize:14,fontWeight:500}}>{opt.name}</p>
-                  {opt.price>0&&<p style={{fontSize:12,color:"#8B1A1A",fontWeight:600}}>+ R$ {opt.price.toFixed(2)}</p>}
+                  {opt.price>0&&<p style={{fontSize:12,color:"var(--brand)",fontWeight:600}}>+ R$ {opt.price.toFixed(2)}</p>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   {count>0&&<button onClick={()=>onChange({...selected,[key]:count-1})} style={{background:"#F0EAE3",border:"none",width:28,height:28,borderRadius:"50%",cursor:"pointer",fontWeight:700,fontSize:16}}>−</button>}
                   {count>0&&<span style={{fontWeight:700,minWidth:16,textAlign:"center"}}>{count}</span>}
-                  <button onClick={()=>{if(groupTotal<group.max)onChange({...selected,[key]:count+1});}} disabled={groupTotal>=group.max&&count===0} style={{background:groupTotal>=group.max&&count===0?"#E5DDD5":"#8B1A1A",color:"#fff",border:"none",width:28,height:28,borderRadius:"50%",cursor:groupTotal>=group.max&&count===0?"not-allowed":"pointer",fontWeight:700,fontSize:16}}>+</button>
+                  <button onClick={()=>{if(groupTotal<group.max)onChange({...selected,[key]:count+1});}} disabled={groupTotal>=group.max&&count===0} style={{background:groupTotal>=group.max&&count===0?"#E5DDD5":"var(--brand)",color:"#fff",border:"none",width:28,height:28,borderRadius:"50%",cursor:groupTotal>=group.max&&count===0?"not-allowed":"pointer",fontWeight:700,fontSize:16}}>+</button>
                 </div>
               </div>
             );
@@ -263,30 +273,30 @@ function CustomerAuth({ onLogin }) {
       <style>{globalStyles}</style>
       <div style={{background:"#fff",borderRadius:20,padding:36,width:"100%",maxWidth:380,textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
         <div style={{fontSize:48,marginBottom:12}}>🍗</div>
-        <h2 className="st" style={{fontSize:26,color:"#8B1A1A",marginBottom:4}}>Billy Chicken</h2>
+        <h2 className="st" style={{fontSize:26,color:"var(--brand)",marginBottom:4}}>Billy Chicken</h2>
         <p style={{color:"#9B8B7A",fontSize:13,marginBottom:24}}>Da nossa casa para sua casa 🥰</p>
 
-        <div style={{display:"flex",background:"#F5F0EB",borderRadius:12,padding:4,marginBottom:24}}>
-          <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="login"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="login"?"#8B1A1A":"#9B8B7A",boxShadow:mode==="login"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Entrar</button>
-          <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="register"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="register"?"#8B1A1A":"#9B8B7A",boxShadow:mode==="register"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Cadastrar</button>
+        <div style={{display:"flex",background:"var(--bg)",borderRadius:12,padding:4,marginBottom:24}}>
+          <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="login"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="login"?"var(--brand)":"#9B8B7A",boxShadow:mode==="login"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Entrar</button>
+          <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:mode==="register"?"#fff":"transparent",fontWeight:700,fontSize:14,color:mode==="register"?"var(--brand)":"#9B8B7A",boxShadow:mode==="register"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>Cadastrar</button>
         </div>
 
         {mode==="register"&&(
           <div style={{marginBottom:14,textAlign:"left"}}>
             <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Seu nome</label>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: João Silva" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: João Silva" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
           </div>
         )}
         <div style={{marginBottom:14,textAlign:"left"}}>
           <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>WhatsApp (com DDD)</label>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ex: 21999990000" type="tel" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ex: 21999990000" type="tel" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
         </div>
         <div style={{marginBottom:20,textAlign:"left"}}>
           <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Senha</label>
-          <input value={pwd} onChange={e=>setPwd(e.target.value)} type="password" placeholder="Mínimo 4 caracteres" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleRegister())} />
+          <input value={pwd} onChange={e=>setPwd(e.target.value)} type="password" placeholder="Mínimo 4 caracteres" style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"11px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleRegister())} />
         </div>
         {error&&<p style={{color:"#EF4444",fontSize:13,marginBottom:14,background:"#FEE2E2",padding:"8px 12px",borderRadius:8}}>{error}</p>}
-        <button onClick={mode==="login"?handleLogin:handleRegister} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>
+        <button onClick={mode==="login"?handleLogin:handleRegister} style={{width:"100%",background:"var(--brand)",color:"#fff",border:"none",borderRadius:12,padding:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>
           {mode==="login"?"Entrar →":"Criar Conta →"}
         </button>
         <button onClick={()=>onLogin(null)} style={{width:"100%",background:"transparent",border:"none",color:"#9B8B7A",fontSize:13,marginTop:12,cursor:"pointer",padding:8}}>
@@ -301,7 +311,7 @@ function CustomerAuth({ onLogin }) {
 function OrderHistory({ user, onBack }) {
   const orders = user?.orders || [];
   return (
-    <div style={{minHeight:"100vh",background:"#F5F0EB"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)"}}>
       <style>{globalStyles}</style>
       <div style={{background:"#1A0A0A",padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
         <button onClick={onBack} style={{background:"transparent",border:"none",color:"#fff",fontSize:24,cursor:"pointer"}}>←</button>
@@ -324,13 +334,13 @@ function OrderHistory({ user, onBack }) {
                 </div>
                 <span style={{background:"#D1FAE5",color:"#065F46",padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>Enviado</span>
               </div>
-              <div style={{borderTop:"1px solid #F5F0EB",paddingTop:12}}>
+              <div style={{borderTop:"1px solid var(--bg)",paddingTop:12}}>
                 {order.items.map((item,j)=>(
                   <p key={j} style={{fontSize:13,color:"#6B7280",marginBottom:4}}>{item.qty}x {item.name}{item.extrasText?` (${item.extrasText})`:""}</p>
                 ))}
-                <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid #F5F0EB"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid var(--bg)"}}>
                   <span style={{fontSize:13,color:"#9B8B7A"}}>{order.type==="delivery"?"🛵 Entrega":"🏪 Retirada"} • {order.payment?.toUpperCase()}</span>
-                  <span className="st" style={{fontSize:16,color:"#8B1A1A"}}>R$ {order.total.toFixed(2)}</span>
+                  <span className="st" style={{fontSize:16,color:"var(--brand)"}}>R$ {order.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -461,11 +471,11 @@ function AddressMapPicker({ storeLat, storeLng, zones, maxKm, onResult }) {
     <div>
       <div style={{display:"flex",gap:8,marginBottom:10}}>
         <input value={searchText} onChange={e=>setSearchText(e.target.value)} placeholder="Buscar endereço no mapa (opcional)" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"9px 12px",outline:"none",fontSize:13}} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleSearch();}}} />
-        <button onClick={handleSearch} disabled={searching} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"9px 14px",fontWeight:700,fontSize:12,cursor:searching?"default":"pointer",whiteSpace:"nowrap",opacity:searching?0.7:1}}>{searching?"Buscando...":"🔍 Buscar"}</button>
+        <button onClick={handleSearch} disabled={searching} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:10,padding:"9px 14px",fontWeight:700,fontSize:12,cursor:searching?"default":"pointer",whiteSpace:"nowrap",opacity:searching?0.7:1}}>{searching?"Buscando...":"🔍 Buscar"}</button>
       </div>
       {searchError&&<p style={{fontSize:12,color:"#C2410C",marginBottom:8}}>{searchError}</p>}
       {!leafletReady?(
-        <div style={{padding:20,textAlign:"center",color:"#9B8B7A",background:"#F5F0EB",borderRadius:12,fontSize:13}}>Carregando mapa...</div>
+        <div style={{padding:20,textAlign:"center",color:"#9B8B7A",background:"var(--bg)",borderRadius:12,fontSize:13}}>Carregando mapa...</div>
       ):(
         <div ref={mapRef} style={{height:260,borderRadius:12,overflow:"hidden"}} />
       )}
@@ -625,7 +635,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
       <div style={{width:100,height:100,background:"#fff",borderRadius:store.logo_shape==="circle"?"50%":20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?0:48,overflow:"hidden",marginBottom:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
         {(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?<img src={store.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}} />:store.logo}
       </div>
-      <h1 className="st" style={{color:store.title_color||"#8B1A1A",fontSize:36,marginBottom:8}}>{store.name}</h1>
+      <h1 className="st" style={{color:store.title_color||"var(--brand)",fontSize:36,marginBottom:8}}>{store.name}</h1>
       <p style={{color:"rgba(255,255,255,0.5)",fontSize:14,marginBottom:24,fontStyle:"italic"}}>{store.slogan}</p>
       <div style={{background:"rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 32px",marginBottom:16}}>
         <p style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:600,marginBottom:4}}>Estamos fechados no momento</p>
@@ -641,22 +651,22 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
   );
 
   if(step==="success") return (
-    <div style={{minHeight:"100vh",background:"#F5F0EB",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
       <style>{globalStyles}</style>
       <div style={{background:"#fff",borderRadius:24,padding:40,maxWidth:400,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.1)"}}>
         <div style={{fontSize:64,marginBottom:16}}>🎉</div>
-        <h2 className="st" style={{fontSize:26,color:"#8B1A1A",marginBottom:8}}>Pedido Enviado!</h2>
+        <h2 className="st" style={{fontSize:26,color:"var(--brand)",marginBottom:8}}>Pedido Enviado!</h2>
         <p style={{color:"#9B8B7A",fontSize:14,marginBottom:24,lineHeight:1.6}}>Seu pedido foi enviado pelo WhatsApp. Em breve você receberá a confirmação!</p>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <button onClick={()=>setStep("menu")} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer"}}>🍔 Fazer Novo Pedido</button>
-          {currentUser&&<button onClick={()=>setShowHistory(true)} style={{background:"#F5F0EB",border:"none",borderRadius:12,padding:"14px",fontWeight:700,fontSize:14,cursor:"pointer",color:"#8B1A1A"}}>📋 Ver Meus Pedidos</button>}
+          <button onClick={()=>setStep("menu")} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer"}}>🍔 Fazer Novo Pedido</button>
+          {currentUser&&<button onClick={()=>setShowHistory(true)} style={{background:"var(--bg)",border:"none",borderRadius:12,padding:"14px",fontWeight:700,fontSize:14,cursor:"pointer",color:"var(--brand)"}}>📋 Ver Meus Pedidos</button>}
         </div>
       </div>
     </div>
   );
 
   if(step==="checkout") return (
-    <div style={{minHeight:"100vh",background:"#F5F0EB"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)"}}>
       <style>{globalStyles}</style>
       <div style={{background:"#1A0A0A",padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
         <button onClick={()=>setStep("menu")} style={{background:"transparent",border:"none",color:"#fff",fontSize:24,cursor:"pointer"}}>←</button>
@@ -667,7 +677,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           <h3 style={{fontWeight:700,marginBottom:14}}>Tipo de pedido</h3>
           <div style={{display:"flex",gap:12}}>
             {["delivery","retirada"].map(t=>(
-              <button key={t} onClick={()=>setOrderType(t)} style={{flex:1,padding:12,borderRadius:12,border:`2px solid ${orderType===t?"#8B1A1A":"#E5DDD5"}`,background:orderType===t?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer",fontSize:14}}>
+              <button key={t} onClick={()=>setOrderType(t)} style={{flex:1,padding:12,borderRadius:12,border:`2px solid ${orderType===t?"var(--brand)":"#E5DDD5"}`,background:orderType===t?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer",fontSize:14}}>
                 {t==="delivery"?"🛵 Entrega":"🏪 Retirada"}
               </button>
             ))}
@@ -678,13 +688,13 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           {[["name","Seu nome *","text"],["phone","Seu WhatsApp *","tel"]].map(([f,l,t])=>(
             <div key={f} style={{marginBottom:12}}>
               <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>{l}</label>
-              <input type={t} value={info[f]} onChange={e=>setInfo(p=>({...p,[f]:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+              <input type={t} value={info[f]} onChange={e=>setInfo(p=>({...p,[f]:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
             </div>
           ))}
           {orderType==="delivery"&&(
             <div>
               <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Endereço completo *</label>
-              <input type="text" placeholder="Rua, número, bairro, cidade — do jeito que você souber" value={info.address} onChange={e=>setInfo(p=>({...p,address:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+              <input type="text" placeholder="Rua, número, bairro, cidade — do jeito que você souber" value={info.address} onChange={e=>setInfo(p=>({...p,address:e.target.value}))} style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,marginBottom:8}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
               {info.address&&(
                 <a href={`https://maps.google.com/?q=${encodeURIComponent(info.address)}`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:13,color:"#1D4ED8",fontWeight:700,background:"#EFF6FF",padding:"8px 14px",borderRadius:10}}>🗺️ Não tem certeza do endereço? Confira no Google Maps</a>
               )}
@@ -726,15 +736,15 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             <div>
               <div style={{display:"flex",gap:8}}>
                 <input value={couponInput} onChange={e=>{setCouponInput(e.target.value.toUpperCase());setCouponState({status:"idle",coupon:null,error:null});}} placeholder="Digite o código" style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14,textTransform:"uppercase"}} onKeyDown={e=>e.key==="Enter"&&applyCoupon()} />
-                <button onClick={applyCoupon} disabled={couponState.status==="loading"} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>{couponState.status==="loading"?"Verificando...":"Aplicar"}</button>
+                <button onClick={applyCoupon} disabled={couponState.status==="loading"} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>{couponState.status==="loading"?"Verificando...":"Aplicar"}</button>
               </div>
               {couponState.status==="error"&&<p style={{fontSize:12,color:"#EF4444",fontWeight:600,marginTop:8}}>⚠️ {couponState.error}</p>}
               <button onClick={()=>{setCouponMode(null);setCouponInput("");setCouponState({status:"idle",coupon:null,error:null});}} style={{background:"transparent",border:"none",color:"#9B8B7A",fontSize:12,cursor:"pointer",marginTop:8,padding:0}}>Cancelar</button>
             </div>
           ):(
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              <button onClick={()=>setCouponMode("input")} style={{padding:"10px 18px",borderRadius:10,border:"2px solid #8B1A1A",background:"#FFF5F5",fontWeight:700,cursor:"pointer",fontSize:13,color:"#8B1A1A"}}>Tenho um cupom</button>
-              <button onClick={()=>setCouponMode("none")} style={{padding:"10px 18px",borderRadius:10,border:`2px solid ${couponMode==="none"?"#8B1A1A":"#E5DDD5"}`,background:couponMode==="none"?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Não tenho cupom</button>
+              <button onClick={()=>setCouponMode("input")} style={{padding:"10px 18px",borderRadius:10,border:"2px solid var(--brand)",background:"#FFF5F5",fontWeight:700,cursor:"pointer",fontSize:13,color:"var(--brand)"}}>Tenho um cupom</button>
+              <button onClick={()=>setCouponMode("none")} style={{padding:"10px 18px",borderRadius:10,border:`2px solid ${couponMode==="none"?"var(--brand)":"#E5DDD5"}`,background:couponMode==="none"?"#FFF5F5":"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Não tenho cupom</button>
             </div>
           )}
         </div>
@@ -742,7 +752,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           <h3 style={{fontWeight:700,marginBottom:14}}>Pagamento</h3>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             {[["pix","PIX"],["cartao","Cartão"],["dinheiro","Dinheiro"]].map(([val,label])=>(
-              <button key={val} onClick={()=>setInfo(p=>({...p,payment:val}))} style={{padding:"10px 18px",borderRadius:10,border:`2px solid ${info.payment===val?"#8B1A1A":"#E5DDD5"}`,background:info.payment===val?"#FFF5F5":"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>{label}</button>
+              <button key={val} onClick={()=>setInfo(p=>({...p,payment:val}))} style={{padding:"10px 18px",borderRadius:10,border:`2px solid ${info.payment===val?"var(--brand)":"#E5DDD5"}`,background:info.payment===val?"#FFF5F5":"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>{label}</button>
             ))}
           </div>
           {info.payment==="dinheiro"&&(
@@ -755,7 +765,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
         <div style={{background:"#fff",borderRadius:16,padding:20,marginBottom:20}}>
           <h3 style={{fontWeight:700,marginBottom:14}}>Resumo</h3>
           {cart.map(i=>(
-            <div key={i.cartId} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #F5F0EB"}}>
+            <div key={i.cartId} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--bg)"}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}>
                 <span>{i.qty}x {i.name}</span>
                 <span style={{fontWeight:600}}>R$ {((i.price+i.extrasTotal)*i.qty).toFixed(2)}</span>
@@ -767,7 +777,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
             {couponState.status==="applied"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#2ECC71",fontWeight:700}}><span>Desconto ({couponState.coupon.code})</span><span>− R$ {discountAmount.toFixed(2)}</span></div>}
             {orderType==="delivery"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:6,color:"#9B8B7A"}}><span>Taxa de entrega{!feeConfirmed?" (estimada)":""}</span><span>R$ {deliveryFeeToUse.toFixed(2)}{!feeConfirmed?" *":""}</span></div>}
             {orderType==="delivery"&&!feeConfirmed&&<p style={{fontSize:11,color:"#C2410C",marginBottom:8}}>* valor a confirmar com a loja pelo WhatsApp</p>}
-            <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"#8B1A1A"}}>R$ {total.toFixed(2)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:16}}><span>Total</span><span style={{color:"var(--brand)"}}>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
         <button onClick={sendWhatsApp} disabled={couponMode===null||(couponMode==="input"&&couponState.status!=="applied")} style={{width:"100%",background:(couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"#B7DFC5":"#25D366",color:"#fff",border:"none",borderRadius:14,padding:18,fontWeight:800,fontSize:16,cursor:(couponMode===null||(couponMode==="input"&&couponState.status!=="applied"))?"default":"pointer"}}>📱 Enviar pedido pelo WhatsApp</button>
@@ -778,7 +788,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
   const parsedC = selProduct?parseC(selProduct.complements):[];
 
   return (
-    <div style={{minHeight:"100vh",background:"#F5F0EB"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)"}}>
       <style>{globalStyles}</style>
       <div style={{position:"relative",height:260}}>
         <img src={store.banner} alt="banner" style={{width:"100%",height:"100%",objectFit:"cover"}} />
@@ -800,7 +810,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
               {(store.logo?.startsWith("data:")||store.logo?.startsWith("http"))?<img src={store.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}} />:store.logo}
             </div>
             <div>
-              <h1 className="st" style={{fontSize:28,color:store.title_color||"#8B1A1A",textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{store.name}</h1>
+              <h1 className="st" style={{fontSize:28,color:store.title_color||"var(--brand)",textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{store.name}</h1>
               <p style={{fontSize:12,opacity:0.8,marginTop:2}}>{store.category}</p>
               {currentUser&&<p style={{fontSize:11,opacity:0.7,marginTop:2}}>Olá, {currentUser.name}! 👋</p>}
             </div>
@@ -818,14 +828,14 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
       <div style={{background:"#fff",padding:"12px 20px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
         <div style={{position:"relative",maxWidth:600,margin:"0 auto"}}>
           <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:12,padding:"10px 14px 10px 42px",fontSize:14,outline:"none"}} onFocus={e=>e.target.style.borderColor="#8B1A1A"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{width:"100%",border:"2px solid #E5DDD5",borderRadius:12,padding:"10px 14px 10px 42px",fontSize:14,outline:"none"}} onFocus={e=>e.target.style.borderColor="var(--brand)"} onBlur={e=>e.target.style.borderColor="#E5DDD5"} />
         </div>
       </div>
 
       <div style={{background:"#fff",borderBottom:"1px solid #E5DDD5",overflowX:"auto",whiteSpace:"nowrap",padding:"0 16px",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"inline-flex",gap:4,padding:"10px 0"}}>
           {allCats.map(cat=>(
-            <button key={cat} onClick={()=>setActiveCategory(cat)} style={{padding:"8px 16px",borderRadius:24,border:"none",cursor:"pointer",fontWeight:600,fontSize:13,background:activeCategory===cat?"#8B1A1A":"#F5F0EB",color:activeCategory===cat?"#fff":"#1A1A1A",whiteSpace:"nowrap",transition:"all 0.2s"}}>{cat}</button>
+            <button key={cat} onClick={()=>setActiveCategory(cat)} style={{padding:"8px 16px",borderRadius:24,border:"none",cursor:"pointer",fontWeight:600,fontSize:13,background:activeCategory===cat?"var(--brand)":"var(--bg)",color:activeCategory===cat?"#fff":"#1A1A1A",whiteSpace:"nowrap",transition:"all 0.2s"}}>{cat}</button>
           ))}
         </div>
       </div>
@@ -836,7 +846,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
           if(cp.length===0)return null;
           return (
             <div key={cat.id} style={{marginBottom:32}}>
-              <h2 className="st" style={{fontSize:22,color:"#8B1A1A",marginBottom:16,paddingBottom:8,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h2>
+              <h2 className="st" style={{fontSize:22,color:"var(--brand)",marginBottom:16,paddingBottom:8,borderBottom:"2px solid #E5DDD5"}}>{cat.name}</h2>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(270px, 1fr))",gap:16}}>
                 {cp.map(p=>(
                   <div key={p.id} onClick={()=>{setSelProduct(p);setSelComplements({});}} style={{background:"#fff",borderRadius:18,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",transition:"transform 0.2s,box-shadow 0.2s",opacity:p.sold_out?0.6:1}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px rgba(0,0,0,0.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.07)";}}>
@@ -849,11 +859,11 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
                       <h3 style={{fontSize:15,fontWeight:700,marginBottom:6}}>{p.name}</h3>
                       <p style={{fontSize:12,color:"#9B8B7A",marginBottom:12,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{p.description}</p>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span className="st" style={{fontSize:18,color:"#8B1A1A"}}>R$ {Number(p.price).toFixed(2)}</span>
+                        <span className="st" style={{fontSize:18,color:"var(--brand)"}}>R$ {Number(p.price).toFixed(2)}</span>
                         {p.sold_out?(
                           <span style={{fontSize:11,fontWeight:700,color:"#9B8B7A"}}>Indisponível</span>
                         ):(
-                          <button onClick={e=>{e.stopPropagation();const c=parseC(p.complements);if(c.length>0){setSelProduct(p);setSelComplements({});}else{addToCart(p,[],{});}}} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,width:36,height:36,fontSize:20,cursor:"pointer"}}>+</button>
+                          <button onClick={e=>{e.stopPropagation();const c=parseC(p.complements);if(c.length>0){setSelProduct(p);setSelComplements({});}else{addToCart(p,[],{});}}} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:10,width:36,height:36,fontSize:20,cursor:"pointer"}}>+</button>
                         )}
                       </div>
                     </div>
@@ -866,7 +876,7 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
       </div>
 
       {cartCount>0&&(
-        <button onClick={()=>setShowCart(true)} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:"15px 28px",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 8px 28px rgba(139,26,26,0.4)",display:"flex",alignItems:"center",gap:12,zIndex:200,whiteSpace:"nowrap"}}>
+        <button onClick={()=>setShowCart(true)} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"var(--brand)",color:"#fff",border:"none",borderRadius:14,padding:"15px 28px",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 8px 28px rgba(139,26,26,0.4)",display:"flex",alignItems:"center",gap:12,zIndex:200,whiteSpace:"nowrap"}}>
           <span style={{background:"rgba(255,255,255,0.25)",borderRadius:20,padding:"2px 10px",fontSize:13}}>{cartCount}</span>
           Ver Carrinho
           <span>R$ {cartTotal.toFixed(2)}</span>
@@ -886,12 +896,12 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
               <h2 style={{fontWeight:800,fontSize:20,marginBottom:8}}>{selProduct.name}</h2>
               <p style={{color:"#9B8B7A",lineHeight:1.7,marginBottom:16}}>{selProduct.description}</p>
               <ComplementSelector complements={parsedC} selected={selComplements} onChange={setSelComplements} />
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"1px solid #F5F0EB"}}>
-                <span className="st" style={{fontSize:22,color:"#8B1A1A"}}>R$ {(Number(selProduct.price)+getExtrasTotal(parsedC,selComplements)).toFixed(2)}</span>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"1px solid var(--bg)"}}>
+                <span className="st" style={{fontSize:22,color:"var(--brand)"}}>R$ {(Number(selProduct.price)+getExtrasTotal(parsedC,selComplements)).toFixed(2)}</span>
                 {selProduct.sold_out?(
-                  <span style={{background:"#F5F0EB",color:"#9B8B7A",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14}}>Esgotado</span>
+                  <span style={{background:"var(--bg)",color:"#9B8B7A",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14}}>Esgotado</span>
                 ):(
-                  <button onClick={()=>addToCart(selProduct,parsedC,selComplements)} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Adicionar</button>
+                  <button onClick={()=>addToCart(selProduct,parsedC,selComplements)} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:12,padding:"13px 26px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Adicionar</button>
                 )}
               </div>
             </div>
@@ -902,30 +912,30 @@ function CustomerArea({ products, store, categories, deliveryZones, user, onLogo
       {showCart&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowCart(false)}>
           <div style={{background:"#fff",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:560,maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{padding:"20px 24px",borderBottom:"1px solid #F5F0EB",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{padding:"20px 24px",borderBottom:"1px solid var(--bg)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <h2 style={{fontWeight:800,fontSize:18}}>Seu Carrinho 🛒</h2>
-              <button onClick={()=>setShowCart(false)} style={{background:"#F5F0EB",border:"none",borderRadius:"50%",width:34,height:34,cursor:"pointer"}}>✕</button>
+              <button onClick={()=>setShowCart(false)} style={{background:"var(--bg)",border:"none",borderRadius:"50%",width:34,height:34,cursor:"pointer"}}>✕</button>
             </div>
             <div style={{padding:"16px 24px"}}>
               {cart.map(item=>(
-                <div key={item.cartId} style={{display:"flex",gap:14,marginBottom:18,paddingBottom:18,borderBottom:"1px solid #F5F0EB"}}>
+                <div key={item.cartId} style={{display:"flex",gap:14,marginBottom:18,paddingBottom:18,borderBottom:"1px solid var(--bg)"}}>
                   <img src={item.image} alt={item.name} style={{width:60,height:60,borderRadius:10,objectFit:"cover"}} />
                   <div style={{flex:1}}>
                     <p style={{fontWeight:700,fontSize:14}}>{item.name}</p>
                     {item.extrasText&&<p style={{fontSize:11,color:"#9B8B7A",marginTop:2}}>{item.extrasText}</p>}
                     <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
-                      <button onClick={()=>changeQty(item.cartId,-1)} style={{background:"#F5F0EB",border:"none",width:26,height:26,borderRadius:"50%",cursor:"pointer",fontWeight:700}}>−</button>
+                      <button onClick={()=>changeQty(item.cartId,-1)} style={{background:"var(--bg)",border:"none",width:26,height:26,borderRadius:"50%",cursor:"pointer",fontWeight:700}}>−</button>
                       <span style={{fontWeight:700}}>{item.qty}</span>
-                      <button onClick={()=>changeQty(item.cartId,1)} style={{background:"#8B1A1A",color:"#fff",border:"none",width:26,height:26,borderRadius:"50%",cursor:"pointer",fontWeight:700}}>+</button>
+                      <button onClick={()=>changeQty(item.cartId,1)} style={{background:"var(--brand)",color:"#fff",border:"none",width:26,height:26,borderRadius:"50%",cursor:"pointer",fontWeight:700}}>+</button>
                     </div>
                   </div>
-                  <span className="st" style={{fontSize:16,color:"#8B1A1A"}}>R$ {((item.price+item.extrasTotal)*item.qty).toFixed(2)}</span>
+                  <span className="st" style={{fontSize:16,color:"var(--brand)"}}>R$ {((item.price+item.extrasTotal)*item.qty).toFixed(2)}</span>
                 </div>
               ))}
-              <div style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:16}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:15}}><span>Subtotal</span><span style={{color:"#8B1A1A"}}>R$ {cartTotal.toFixed(2)}</span></div>
+              <div style={{background:"var(--bg)",borderRadius:12,padding:16,marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:15}}><span>Subtotal</span><span style={{color:"var(--brand)"}}>R$ {cartTotal.toFixed(2)}</span></div>
               </div>
-              <button onClick={()=>{setShowCart(false);setStep("checkout");}} style={{width:"100%",background:"#8B1A1A",color:"#fff",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:15,cursor:"pointer"}}>Finalizar Pedido →</button>
+              <button onClick={()=>{setShowCart(false);setStep("checkout");}} style={{width:"100%",background:"var(--brand)",color:"#fff",border:"none",borderRadius:14,padding:16,fontWeight:800,fontSize:15,cursor:"pointer"}}>Finalizar Pedido →</button>
             </div>
           </div>
         </div>
@@ -941,7 +951,7 @@ function ComplementEditor({value,onChange}){
   return(
     <div>
       {groups.map(g=>(
-        <div key={g.id} style={{background:"#F5F0EB",borderRadius:12,padding:16,marginBottom:12}}>
+        <div key={g.id} style={{background:"var(--bg)",borderRadius:12,padding:16,marginBottom:12}}>
           <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
             <input value={g.title} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,title:e.target.value}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"8px 12px",outline:"none",fontSize:14,fontWeight:700}} placeholder="Nome do grupo" />
             <input type="number" value={g.max} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,max:parseInt(e.target.value)||1}:x))} style={{width:60,border:"2px solid #E5DDD5",borderRadius:8,padding:8,outline:"none",fontSize:14,textAlign:"center"}} min={1} title="Máximo" />
@@ -951,14 +961,14 @@ function ComplementEditor({value,onChange}){
             <div key={oi} style={{display:"flex",gap:8,marginBottom:8}}>
               <input value={opt.name} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,name:e.target.value}:o)}:x))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:8,padding:"7px 12px",outline:"none",fontSize:13,textDecoration:opt.sold_out?"line-through":"none",color:opt.sold_out?"#9B8B7A":"#1A1A1A"}} placeholder="Nome" />
               <input type="number" value={opt.price} onChange={e=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,price:parseFloat(e.target.value)||0}:o)}:x))} style={{width:70,border:"2px solid #E5DDD5",borderRadius:8,padding:7,outline:"none",fontSize:13,textAlign:"center"}} step="0.01" placeholder="R$" />
-              <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,sold_out:!o.sold_out}:o)}:x))} title={opt.sold_out?"Marcar como disponível":"Marcar como esgotado"} style={{background:opt.sold_out?"#1A1A1A":"#F5F0EB",color:opt.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{opt.sold_out?"Esgotado":"Disponível"}</button>
+              <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.map((o,i)=>i===oi?{...o,sold_out:!o.sold_out}:o)}:x))} title={opt.sold_out?"Marcar como disponível":"Marcar como esgotado"} style={{background:opt.sold_out?"#1A1A1A":"var(--bg)",color:opt.sold_out?"#fff":"#1A1A1A",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{opt.sold_out?"Esgotado":"Disponível"}</button>
               <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:x.options.filter((_,i)=>i!==oi)}:x))} style={{background:"#FEE2E2",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",color:"#991B1B"}}>✕</button>
             </div>
           ))}
           <button onClick={()=>upd(groups.map(x=>x.id===g.id?{...x,options:[...x.options,{name:"Nova opção",price:0}]}:x))} style={{background:"#fff",border:"2px dashed #D4C5B0",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:"#9B8B7A",width:"100%"}}>+ Adicionar opção</button>
         </div>
       ))}
-      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
+      <button onClick={()=>upd([...groups,{id:Date.now(),title:"Novo Complemento",options:[],max:1}])} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%"}}>+ Novo grupo de complementos</button>
     </div>
   );
 }
@@ -989,8 +999,8 @@ function PForm({data,setData,onSave,onCancel,title,categories,saving}){
       <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:8}}>Complementos</label>
       <ComplementEditor value={data.complements||"[]"} onChange={val=>setData(p=>({...p,complements:val}))} />
       <div style={{display:"flex",gap:10,marginTop:16}}>
-        <button onClick={onSave} disabled={saving} style={{background:"#8B1A1A",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
-        <button onClick={onCancel} style={{background:"#F5F0EB",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
+        <button onClick={onSave} disabled={saving} style={{background:"var(--brand)",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",flex:1}}>{saving?"Salvando...":"Salvar"}</button>
+        <button onClick={onCancel} style={{background:"var(--bg)",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Cancelar</button>
       </div>
     </div>
   );
@@ -1065,7 +1075,7 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
       const marker=L.marker([numLat,numLng],{icon:storeIcon}).addTo(mapInstance.current);
       layersRef.current.push(marker);
 
-      const colors=["#8B1A1A","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
+      const colors=["var(--brand)","#F59E0B","#2ECC71","#3B82F6","#8B5CF6","#EC4899"];
       const numMaxKm = Number(maxKm);
       let biggestKm = (!isNaN(numMaxKm) && numMaxKm>0) ? numMaxKm : 5;
       const validZones = (zones||[]).filter(z=>!isNaN(Number(z.max_km))&&Number(z.max_km)>0);
@@ -1086,8 +1096,8 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
       }else if(!isNaN(numMaxKm) && numMaxKm>0){
         const circle=L.circle([numLat,numLng],{
           radius:numMaxKm*1000,
-          color:"#8B1A1A",
-          fillColor:"#8B1A1A",
+          color:"var(--brand)",
+          fillColor:"var(--brand)",
           fillOpacity:0.1,
           weight:2,
         }).addTo(mapInstance.current);
@@ -1110,16 +1120,26 @@ function DeliveryRadiusMap({ lat, lng, maxKm, zones }) {
   },[]);
 
   if(lat==null||lng==null){
-    return <div style={{padding:24,textAlign:"center",color:"#9B8B7A",background:"#F5F0EB",borderRadius:12,fontSize:13}}>Defina a localização da loja acima para ver o mapa do raio de entrega.</div>;
+    return <div style={{padding:24,textAlign:"center",color:"#9B8B7A",background:"var(--bg)",borderRadius:12,fontSize:13}}>Defina a localização da loja acima para ver o mapa do raio de entrega.</div>;
   }
   if(!leafletReady){
-    return <div style={{padding:24,textAlign:"center",color:"#9B8B7A",background:"#F5F0EB",borderRadius:12,fontSize:13}}>Carregando mapa...</div>;
+    return <div style={{padding:24,textAlign:"center",color:"#9B8B7A",background:"var(--bg)",borderRadius:12,fontSize:13}}>Carregando mapa...</div>;
   }
   return <div ref={mapRef} style={{height:300,borderRadius:12,overflow:"hidden"}} />;
 }
 
 function AdminArea({ products, setProducts, store, setStore, categories, setCategories, deliveryZones, setDeliveryZones, coupons, setCoupons, accessToken, onLogout }) {
   const adb = (table, method, body, filter) => db(table, method, body, filter, accessToken);
+
+  useEffect(()=>{
+    if(document.getElementById("admin-font-previews"))return;
+    const link=document.createElement("link");
+    link.id="admin-font-previews";
+    link.rel="stylesheet";
+    link.href="https://fonts.googleapis.com/css2?" + FONT_OPTIONS.map(f=>`family=${f.value.replace(/ /g,"+")}:wght@400;700;800`).join("&");
+    document.head.appendChild(link);
+  },[]);
+
   const [section,setSection]=useState("products");
   const [sidebarOpen,setSidebarOpen]=useState(true);
   const [notif,setNotif]=useState(null);
@@ -1739,14 +1759,29 @@ function AdminArea({ products, setProducts, store, setStore, categories, setCate
                 </div>
               </div>
               <div style={{background:"#fff",borderRadius:16,padding:24,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:20}}>
-                <h3 style={{fontWeight:800,marginBottom:16}}>🎨 Aparência</h3>
-                <div style={{marginBottom:16}}>
-                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Cor do nome</label>
+                <h3 style={{fontWeight:800,marginBottom:4}}>🎨 Aparência do cardápio</h3>
+                <p style={{fontSize:12,color:"#9B8B7A",marginBottom:16}}>Essas escolhas aparecem só no cardápio do cliente — o painel admin continua com a cara padrão.</p>
+                <div style={{marginBottom:20}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Cor principal da marca (botões, preços, destaques)</label>
                   <div style={{display:"flex",gap:12,alignItems:"center"}}>
                     <input type="color" value={store.title_color||"#8B1A1A"} onChange={e=>setStore(p=>({...p,title_color:e.target.value}))} style={{width:50,height:40,border:"none",borderRadius:8,cursor:"pointer"}} />
                     <input value={store.title_color||"#8B1A1A"} onChange={e=>setStore(p=>({...p,title_color:e.target.value}))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
                     <span className="st" style={{fontSize:20,color:store.title_color||"#8B1A1A"}}>{store.name}</span>
                   </div>
+                </div>
+                <div style={{marginBottom:20}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Cor de fundo do cardápio</label>
+                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                    <input type="color" value={store.background_color||"#F5F0EB"} onChange={e=>setStore(p=>({...p,background_color:e.target.value}))} style={{width:50,height:40,border:"none",borderRadius:8,cursor:"pointer"}} />
+                    <input value={store.background_color||"#F5F0EB"} onChange={e=>setStore(p=>({...p,background_color:e.target.value}))} style={{flex:1,border:"2px solid #E5DDD5",borderRadius:10,padding:"10px 14px",outline:"none",fontSize:14}} />
+                  </div>
+                </div>
+                <div style={{marginBottom:20}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Fonte do cardápio</label>
+                  <select value={store.font_family||"Inter"} onChange={e=>setStore(p=>({...p,font_family:e.target.value}))} style={IS}>
+                    {FONT_OPTIONS.map(f=>(<option key={f.value} value={f.value}>{f.label}</option>))}
+                  </select>
+                  <p className="st" style={{fontFamily:`'${store.font_family||"Inter"}', sans-serif`,fontSize:22,color:store.title_color||"#8B1A1A",marginTop:-6}}>{store.name || "Pré-visualização do nome"}</p>
                 </div>
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:"#9B8B7A",display:"block",marginBottom:6}}>Formato da logo</label>
@@ -2007,6 +2042,41 @@ export default function App() {
       document.head.appendChild(link);
     }
   },[store.name, store.logo, routeSlug]);
+
+  useEffect(()=>{
+    if(!routeSlug){
+      // Garante que nenhum tema de restaurante "vaze" pro admin ou pra landing page
+      document.getElementById("restaurant-theme")?.remove();
+      document.getElementById("restaurant-font")?.remove();
+      return;
+    }
+    const brand = store.title_color || "#8B1A1A";
+    const bg = store.background_color || "#F5F0EB";
+    const fontOpt = FONT_OPTIONS.find(f=>f.value===store.font_family) || FONT_OPTIONS[0];
+
+    let styleTag = document.getElementById("restaurant-theme");
+    if(!styleTag){
+      styleTag = document.createElement("style");
+      styleTag.id = "restaurant-theme";
+      document.head.appendChild(styleTag);
+    }
+    styleTag.textContent = `
+      :root { --brand: ${brand}; --bg: ${bg}; }
+      body { font-family: '${fontOpt.value}', sans-serif !important; }
+      .st { font-family: '${fontOpt.value}', sans-serif !important; }
+    `;
+
+    let fontLink = document.getElementById("restaurant-font");
+    if(!fontLink){
+      fontLink = document.createElement("link");
+      fontLink.id = "restaurant-font";
+      fontLink.rel = "stylesheet";
+      document.head.appendChild(fontLink);
+    }
+    if(fontLink.href !== fontOpt.googleUrl){
+      fontLink.href = fontOpt.googleUrl;
+    }
+  },[routeSlug, store.title_color, store.background_color, store.font_family]);
 
   async function loadRestaurantData(restaurantId, token){
     try{
